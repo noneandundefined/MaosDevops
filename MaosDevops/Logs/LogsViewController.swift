@@ -194,6 +194,7 @@ final class LogStreamViewController: NSViewController {
         self.streaming = streaming
         self.levelFilter = levelFilter
         self.searchText = search
+        pendingChunk = ""
         clear()
         fetch()
     }
@@ -215,7 +216,9 @@ final class LogStreamViewController: NSViewController {
                     self.streamHandle = nil
                     if case .failure(let error) = result {
                         if let sshError = error as? SSHError, case .cancelled = sshError { return }
-                        self.ingest(error.localizedDescription)
+                        self.ingest(error.localizedDescription, flush: true)
+                    } else {
+                        self.ingest("", flush: true)
                     }
                 }
             )
@@ -225,17 +228,24 @@ final class LogStreamViewController: NSViewController {
             guard let self = self else { return }
             switch result {
             case .success(let r):
-                self.ingest(r.stdout + (r.stderr.isEmpty ? "" : "\n" + r.stderr))
+                self.ingest(r.stdout + (r.stderr.isEmpty ? "" : "\n" + r.stderr), flush: true)
             case .failure(let e):
-                self.ingest(e.localizedDescription)
+                self.ingest(e.localizedDescription, flush: true)
             }
         }
     }
 
-    private func ingest(_ text: String) {
+    private func ingest(_ text: String, flush: Bool = false) {
+        pendingChunk += text
+        var parts = pendingChunk.components(separatedBy: "\n")
+        if flush {
+            pendingChunk = ""
+        } else {
+            pendingChunk = parts.popLast() ?? ""
+        }
         let stamp = ISO8601DateFormatter().string(from: Date())
-        let newLines = text.split(separator: "\n", omittingEmptySubsequences: false).map { "[\(stamp)] \($0)" }
-        lines.append(contentsOf: newLines.map(String.init))
+        if flush, parts.last == "" { parts.removeLast() }
+        lines.append(contentsOf: parts.map { "[\(stamp)] \($0)" })
         if lines.count > maxLines {
             lines.removeFirst(lines.count - maxLines)
         }
@@ -265,7 +275,7 @@ final class LogStreamViewController: NSViewController {
         sender.title = paused ? "Resume" : "Pause"
         if !paused { render() }
     }
-    @objc private func clear() { lines.removeAll(keepingCapacity: true); textView.string = "" }
+    @objc private func clear() { lines.removeAll(keepingCapacity: true); pendingChunk = ""; textView.string = "" }
     @objc private func toggleAutoScroll(_ sender: NSButton) {
         autoScroll = sender.state == .on
         if autoScroll { textView.scrollToEndOfDocument(nil) }

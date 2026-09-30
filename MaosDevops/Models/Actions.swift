@@ -101,9 +101,26 @@ struct DeployWorkflow: Identifiable, Equatable, Codable {
     var name: String
     var serverId: UUID
     var projectId: UUID?
+    var workingDirectory: String?
     var stepCommands: [String]
     var stopOnError: Bool
     var confirmationRequired: Bool
     var createdAt: Date
     var updatedAt: Date
+
+    init(id: UUID = UUID(), name: String, serverId: UUID, projectId: UUID? = nil,
+         workingDirectory: String? = nil,
+         stepCommands: [String], stopOnError: Bool = true, confirmationRequired: Bool = true,
+         createdAt: Date = Date(), updatedAt: Date = Date()) {
+        self.id = id
+        self.name = name
+        self.serverId = serverId
+        self.projectId = projectId
+        self.workingDirectory = workingDirectory
+        self.stepCommands = stepCommands
+        self.stopOnError = stopOnError
+        self.confirmationRequired = confirmationRequired
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
 }

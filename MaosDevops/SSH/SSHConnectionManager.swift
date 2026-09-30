@@ -205,7 +205,7 @@ final class SSHSession {
     }
 
     /// Interactive SSH for terminal (own Process + PTY-like pipes).
-    func makeInteractiveProcess() throws -> Process {
+    func makeInteractiveProcess(remoteCommand: String = "exec $SHELL -l") throws -> Process {
         try workQueue.sync {
             if !isConnected {
                 try connectLocked()
@@ -213,7 +213,7 @@ final class SSHSession {
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = baseSSHArgs(includeControl: true) + ["-tt", destination, "exec $SHELL -l"]
+        process.arguments = baseSSHArgs(includeControl: true) + ["-tt", destination, remoteCommand]
         applyAuthEnvironment(to: process)
         return process
     }
@@ -535,6 +535,52 @@ final class SSHConnectionManager {
             }
         }
         return handle
+    }
+
+    func sftp(on server: Server, command: String,
+              completion: @escaping (Result<SSHCommandResult, Error>) -> Void) {
+        let session = self.session(for: server)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            self.commandSemaphore.wait()
+            defer { self.commandSemaphore.signal() }
+            do {
+                let process = try session.makeSFTPProcess()
+                let input = Pipe()
+                let output = Pipe()
+                let error = Pipe()
+                process.standardInput = input
+                process.standardOutput = output
+                process.standardError = error
+                try process.run()
+
+                let reads = DispatchGroup()
+                var stdout = Data()
+                var stderr = Data()
+                reads.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    stdout = output.fileHandleForReading.readDataToEndOfFile()
+                    reads.leave()
+                }
+                reads.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    stderr = error.fileHandleForReading.readDataToEndOfFile()
+                    reads.leave()
+                }
+                input.fileHandleForWriting.write(Data((command + "\n").utf8))
+                input.fileHandleForWriting.closeFile()
+                process.waitUntilExit()
+                reads.wait()
+                let result = SSHCommandResult(
+                    exitCode: process.terminationStatus,
+                    stdout: String(data: stdout, encoding: .utf8) ?? "",
+                    stderr: String(data: stderr, encoding: .utf8) ?? ""
+                )
+                DispatchQueue.main.async { completion(.success(result)) }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
     }
 
     func testConnection(server: Server, completion: @escaping (Result<String, Error>) -> Void) {

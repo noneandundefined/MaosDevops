@@ -11,7 +11,7 @@ Lightweight native macOS DevOps client (AppKit + Swift).
 2. SSH connect / exec (system `ssh` + ControlMaster multiplexing)  
 3. Multi-tab persistent SSH terminal  
 4. Custom Actions (Command / Poll / Stream / Check / Group)  
-5. Monitoring metrics, systemd, Docker, bounded live logs, SFTP transfers, Projects, Deploy  
+5. Monitoring charts, systemd, Docker, bounded live logs, full SFTP file operations, Projects, Deploy, Git and Health Checks
 
 The detailed implementation status against the product specification is in
 [`docs/TZ_CHECKLIST.md`](docs/TZ_CHECKLIST.md). Items marked partial or planned

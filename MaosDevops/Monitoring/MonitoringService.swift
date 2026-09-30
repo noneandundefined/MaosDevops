@@ -1,5 +1,15 @@
 import Foundation
 
+struct MonitoringSample {
+    let timestamp: Date
+    let cpu: Double
+    let ram: Double
+    let disk: Double
+    let load1: Double
+    let netRx: Double
+    let netTx: Double
+}
+
 /// Polls server metrics over SSH. Stops when UI is not visible.
 final class MonitoringService {
     private let sshManager: SSHConnectionManager
@@ -8,6 +18,9 @@ final class MonitoringService {
     private var lastNet: [UUID: (rx: Double, tx: Double, at: Date)] = [:]
     private let queue = DispatchQueue(label: "com.maosdevops.monitoring", qos: .utility)
     private var handlers: [UUID: (ServerSnapshot) -> Void] = [:]
+    private var lastSnapshots: [UUID: ServerSnapshot] = [:]
+    private var lastDiskPoll: [UUID: Date] = [:]
+    private var lastDockerPoll: [UUID: Date] = [:]
 
     init(sshManager: SSHConnectionManager, storage: StorageService) {
         self.sshManager = sshManager
@@ -65,6 +78,14 @@ final class MonitoringService {
 
     /// Single SSH round-trip script — minimizes channel churn on weak machines.
     private func collect(server: Server) throws -> ServerSnapshot {
+        let now = Date()
+        let preferences = storage.preferences
+        let needDisk = lastDiskPoll[server.id].map { now.timeIntervalSince($0) >= Double(preferences.diskPollSeconds) } ?? true
+        let needDocker = lastDockerPoll[server.id].map { now.timeIntervalSince($0) >= Double(preferences.dockerPollSeconds) } ?? true
+        let diskCommand = needDisk ? "DISK=$(df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,\"\",$5); print $5}')" : "DISK="
+        let capabilityCommands = needDocker
+            ? "DOCKER=0; command -v docker >/dev/null 2>&1 && DOCKER=1; SYSTEMD=0; command -v systemctl >/dev/null 2>&1 && SYSTEMD=1"
+            : "DOCKER=; SYSTEMD="
         let script = """
         set +e
         HOSTNAME=$(hostname 2>/dev/null)
@@ -81,12 +102,11 @@ final class MonitoringService {
         if [ "$DIFF_TOTAL" -gt 0 ]; then CPU=$(awk -v t=$DIFF_TOTAL -v i=$DIFF_IDLE 'BEGIN{printf "%.1f", (1-i/t)*100}'); else CPU=0; fi
         # RAM
         MEM=$(free -b 2>/dev/null | awk '/Mem:/ {if($2>0) printf "%.1f", ($2-$7)/$2*100}')
-        # Disk root
-        DISK=$(df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5); print $5}')
+        # Disk root (lower cadence than CPU/RAM)
+        \(diskCommand)
         # Network totals
         NET=$(cat /proc/net/dev 2>/dev/null | awk -F'[: ]+' 'NR>2 && $1!~/lo/{rx+=$3; tx+=$11} END{print rx+0, tx+0}')
-        DOCKER=0; command -v docker >/dev/null 2>&1 && DOCKER=1
-        SYSTEMD=0; command -v systemctl >/dev/null 2>&1 && SYSTEMD=1
+        \(capabilityCommands)
         printf 'HOST=%s\\nOS=%s\\nUP=%s\\nLOAD=%s\\nCPU=%s\\nMEM=%s\\nDISK=%s\\nNET=%s\\nDOCKER=%s\\nSYSTEMD=%s\\n' \
           "$HOSTNAME" "$OS" "$UPTIME" "$LOAD" "$CPU" "$MEM" "$DISK" "$NET" "$DOCKER" "$SYSTEMD"
         """
@@ -97,7 +117,7 @@ final class MonitoringService {
             throw SSHError.commandFailed(result.exitCode, result.stderr)
         }
 
-        var snap = ServerSnapshot()
+        var snap = lastSnapshots[server.id] ?? ServerSnapshot()
         snap.status = .online
         snap.updatedAt = Date()
         var netRxTotal: Double = 0
@@ -117,17 +137,16 @@ final class MonitoringService {
                 }
             case "CPU": snap.cpuPercent = Double(parts[1]) ?? 0
             case "MEM": snap.ramPercent = Double(parts[1]) ?? 0
-            case "DISK": snap.diskPercent = Double(parts[1]) ?? 0
+            case "DISK": if !parts[1].isEmpty { snap.diskPercent = Double(parts[1]) ?? snap.diskPercent }
             case "NET":
                 let n = parts[1].split(separator: " ").compactMap { Double($0) }
                 if n.count >= 2 { netRxTotal = n[0]; netTxTotal = n[1] }
-            case "DOCKER": snap.dockerAvailable = parts[1] == "1"
-            case "SYSTEMD": snap.systemdAvailable = parts[1] == "1"
+            case "DOCKER": if !parts[1].isEmpty { snap.dockerAvailable = parts[1] == "1" }
+            case "SYSTEMD": if !parts[1].isEmpty { snap.systemdAvailable = parts[1] == "1" }
             default: break
             }
         }
 
-        let now = Date()
         if let prev = lastNet[server.id] {
             let dt = now.timeIntervalSince(prev.at)
             if dt > 0 {
@@ -136,6 +155,9 @@ final class MonitoringService {
             }
         }
         lastNet[server.id] = (netRxTotal, netTxTotal, now)
+        if needDisk { lastDiskPoll[server.id] = now }
+        if needDocker { lastDockerPoll[server.id] = now }
+        lastSnapshots[server.id] = snap
         return snap
     }
 }

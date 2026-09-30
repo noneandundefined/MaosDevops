@@ -9,6 +9,7 @@ final class AppServices {
     let sshManager: SSHConnectionManager
     let actions: ActionRunner
     let monitoring: MonitoringService
+    let healthChecks: HealthCheckRunner
 
     private init() {
         storage = StorageService()
@@ -16,6 +17,7 @@ final class AppServices {
         sshManager = SSHConnectionManager(keychain: keychain)
         actions = ActionRunner(sshManager: sshManager, storage: storage)
         monitoring = MonitoringService(sshManager: sshManager, storage: storage)
+        healthChecks = HealthCheckRunner(sshManager: sshManager)
     }
 
     func bootstrap() {

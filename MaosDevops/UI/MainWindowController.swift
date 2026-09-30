@@ -37,6 +37,8 @@ enum ServerDetailTab: String, CaseIterable {
     case files
     case monitoring
     case actions
+    case git
+    case health
 
     var title: String {
         switch self {
@@ -48,6 +50,8 @@ enum ServerDetailTab: String, CaseIterable {
         case .files: return "Files"
         case .monitoring: return "Monitoring"
         case .actions: return "Actions"
+        case .git: return "Git"
+        case .health: return "Health"
         }
     }
 }

@@ -34,7 +34,8 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
         table.doubleAction = #selector(inspectSelected)
         for (id, title, width) in [
             ("name", "Container", 160), ("status", "Status", 120),
-            ("image", "Image", 180), ("ports", "Ports", 160), ("stats", "CPU / RAM", 120)
+            ("image", "Image", 170), ("ports", "Ports", 150), ("stats", "CPU / RAM", 120),
+            ("restarts", "Restarts", 65), ("uptime", "Uptime", 85)
         ] {
             let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             col.title = title
@@ -89,6 +90,7 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
 
     override func viewWillAppear() {
         super.viewWillAppear()
+        timer?.cancel()
         isVisible = true
         reload()
         let seconds = AppServices.shared.storage.preferences.dockerPollSeconds
@@ -111,7 +113,13 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
 
     @objc private func reload() {
         statusLabel.stringValue = "Loading…"
-        let cmd = "docker ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}\\t{{.Ports}}\\t{{.RunningFor}}\\t{{.ID}}' 2>/dev/null"
+        let cmd = """
+        docker ps -aq 2>/dev/null | while IFS= read -r id; do
+          docker inspect --format '{{.Name}}\t{{.State.Status}}\t{{.Config.Image}}\t{{json .NetworkSettings.Ports}}\t{{.RestartCount}}\t{{.State.StartedAt}}\t{{.Id}}' "$id"
+        done
+        echo __MAOS_STATS__
+        docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemPerc}}' 2>/dev/null
+        """
         AppServices.shared.sshManager.execute(on: server, command: cmd) { [weak self] result in
             guard let self = self else { return }
             switch result {
@@ -120,11 +128,22 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
                     self.statusLabel.stringValue = "Docker not available"
                     self.containers = []
                 } else {
-                    self.containers = r.stdout.split(separator: "\n").compactMap { line in
+                    let sections = r.stdout.components(separatedBy: "__MAOS_STATS__\n")
+                    var stats: [String: (String, String)] = [:]
+                    if sections.count > 1 {
+                        for line in sections[1].split(separator: "\n") {
+                            let values = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+                            if values.count >= 3 { stats[values[0]] = (values[1], values[2]) }
+                        }
+                    }
+                    self.containers = sections[0].split(separator: "\n").compactMap { line in
                         let p = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-                        guard p.count >= 4 else { return nil }
-                        return DockerContainer(name: p[0], status: p[1], image: p[2], ports: p[3],
-                                               uptime: p.count > 4 ? p[4] : "", id: p.count > 5 ? p[5] : p[0])
+                        guard p.count >= 7 else { return nil }
+                        let name = p[0].hasPrefix("/") ? String(p[0].dropFirst()) : p[0]
+                        let usage = stats[name] ?? ("—", "—")
+                        return DockerContainer(name: name, status: p[1], image: p[2], ports: p[3],
+                                               startedAt: p[5], restartCount: Int(p[4]) ?? 0,
+                                               cpu: usage.0, ram: usage.1, id: p[6])
                     }
                     self.statusLabel.stringValue = "\(self.containers.count) containers"
                 }
@@ -153,12 +172,10 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
     @objc private func restartSelected() { docker("restart") }
     @objc private func shellSelected() {
         guard let c = selected() else { return }
-        AppServices.shared.sshManager.execute(on: server, command: "docker exec -it \(c.name) sh -c 'echo shell-ready'") { result in
-            let alert = NSAlert()
-            alert.messageText = "Shell"
-            alert.informativeText = (try? result.get().stdout) ?? (result.getError()?.localizedDescription ?? "")
-            alert.runModal()
-        }
+        let name = "'" + c.name.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        presentAsSheet(TerminalViewController(server: server,
+                                              remoteCommand: "docker exec -it \(name) sh",
+                                              dismissable: true))
     }
     @objc private func inspectSelected() {
         guard let c = selected() else { return }
@@ -212,7 +229,9 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
             value = "\(running ? "●" : "○") \(c.status)"
         case "image": value = c.image
         case "ports": value = c.ports
-        case "stats": value = c.uptime
+        case "stats": value = "\(c.cpu) / \(c.ram)"
+        case "restarts": value = "\(c.restartCount)"
+        case "uptime": value = c.uptime
         default: value = ""
         }
         let cell = NSTableCellView()
@@ -235,8 +254,20 @@ struct DockerContainer {
     let status: String
     let image: String
     let ports: String
-    let uptime: String
+    let startedAt: String
+    let restartCount: Int
+    let cpu: String
+    let ram: String
     let id: String
+
+    var uptime: String {
+        guard status == "running" else { return "—" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: startedAt) ?? ISO8601DateFormatter().date(from: startedAt)
+        guard let started = date else { return "—" }
+        return Formatters.uptime(max(0, Int(Date().timeIntervalSince(started))))
+    }
 }
 
 private extension Result {

@@ -6,6 +6,8 @@ final class ServerOverviewViewController: NSViewController {
     private let problemsStack = NSStackView()
     private let quickActionsStack = NSStackView()
     private var snapshot = ServerSnapshot()
+    private var diagnosticProblems: [ProblemItem] = []
+    private var lastDiagnosticsAt: Date?
 
     init(server: Server) {
         self.server = server
@@ -117,14 +119,91 @@ final class ServerOverviewViewController: NSViewController {
         systemd: \(snapshot.systemdAvailable ? "available" : "not found")
         """
 
+        renderProblems()
+        if lastDiagnosticsAt.map({ Date().timeIntervalSince($0) > 15 }) ?? true {
+            refreshDiagnostics()
+        }
+    }
+
+    private func renderProblems() {
         problemsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for problem in ProblemsDetector.detect(snapshot: snapshot) {
-            let row = NSTextField(labelWithString: problem.title)
-            row.font = NSFont.systemFont(ofSize: 12)
-            problemsStack.addArrangedSubview(row)
+        let problems = ProblemsDetector.detect(snapshot: snapshot) + diagnosticProblems
+        for (index, problem) in problems.enumerated() {
+            let button = NSButton(title: "\(problem.title) — \(problem.suggestedAction)",
+                                  target: self, action: #selector(runProblemAction(_:)))
+            button.tag = index
+            button.bezelStyle = .inline
+            button.alignment = .left
+            problemsStack.addArrangedSubview(button)
         }
         if problemsStack.arrangedSubviews.isEmpty {
             problemsStack.addArrangedSubview(NSTextField(labelWithString: "No problems detected"))
+        }
+    }
+
+    private func refreshDiagnostics() {
+        lastDiagnosticsAt = Date()
+        let command = """
+        echo __SYSTEMD__
+        systemctl --failed --type=service --no-legend --plain 2>/dev/null | awk '{print $1}'
+        echo __DOCKER__
+        docker ps -aq 2>/dev/null | while IFS= read -r id; do
+          docker inspect --format '{{.Name}}\t{{.RestartCount}}\t{{.State.Status}}' "$id"
+        done
+        """
+        AppServices.shared.sshManager.execute(on: server, command: command) { [weak self] result in
+            guard let self = self, case .success(let value) = result else { return }
+            var section = ""
+            var problems: [ProblemItem] = []
+            for raw in value.stdout.split(separator: "\n") {
+                let line = String(raw)
+                if line == "__SYSTEMD__" || line == "__DOCKER__" { section = line; continue }
+                if section == "__SYSTEMD__", !line.isEmpty {
+                    problems.append(ProblemItem(severity: .critical, title: "🔴 systemd \(line) failed",
+                                                suggestedAction: "Restart", actionCommand: "systemctl restart '\(line)'"))
+                } else if section == "__DOCKER__" {
+                    let fields = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+                    guard fields.count >= 3 else { continue }
+                    let name = fields[0].hasPrefix("/") ? String(fields[0].dropFirst()) : fields[0]
+                    let restarts = Int(fields[1]) ?? 0
+                    if restarts >= 3 || fields[2] == "restarting" {
+                        problems.append(ProblemItem(severity: .critical,
+                                                    title: "🔴 \(name) restarting \(restarts) times",
+                                                    suggestedAction: "Restart", actionCommand: "docker restart '\(name)'"))
+                    }
+                }
+            }
+            self.diagnosticProblems = problems
+            self.renderProblems()
+        }
+    }
+
+    @objc private func runProblemAction(_ sender: NSButton) {
+        let problems = ProblemsDetector.detect(snapshot: snapshot) + diagnosticProblems
+        guard sender.tag >= 0, sender.tag < problems.count else { return }
+        let problem = problems[sender.tag]
+        guard let command = problem.actionCommand else {
+            let alert = NSAlert()
+            alert.messageText = problem.title
+            alert.informativeText = "Use \(problem.suggestedAction) from the server tabs."
+            alert.runModal()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Run corrective action?"
+        alert.informativeText = command
+        alert.addButton(withTitle: "Run")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        AppServices.shared.sshManager.execute(on: server, command: command) { [weak self] result in
+            if case .success(let value) = result, !value.stdout.isEmpty {
+                let output = NSAlert()
+                output.messageText = problem.suggestedAction
+                output.informativeText = String((value.stdout + value.stderr).prefix(4_000))
+                output.runModal()
+            }
+            self?.lastDiagnosticsAt = nil
+            self?.refreshDiagnostics()
         }
     }
 

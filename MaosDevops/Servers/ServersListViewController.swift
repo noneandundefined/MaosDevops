@@ -77,6 +77,7 @@ final class ServersListViewController: NSViewController, NSOutlineViewDataSource
 
     @objc private func reload() {
         servers = (try? AppServices.shared.storage.allServers()) ?? []
+        snapshots = (try? AppServices.shared.storage.latestMonitoringSnapshots()) ?? [:]
         outline.reloadData()
         for group in groups {
             outline.expandItem(group)

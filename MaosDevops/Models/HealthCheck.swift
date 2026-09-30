@@ -72,11 +72,11 @@ final class HealthCheckRunner {
             }.resume()
 
         case .tcp:
-            guard let endpoint = Self.parseTCP(check.target),
-                  let port = NWEndpoint.Port(rawValue: endpoint.port) else {
+            guard let endpoint = Self.parseTCP(check.target) else {
                 finish(false, "Use host:port")
                 return
             }
+            let port = NWEndpoint.Port(rawValue: endpoint.port)
             let gate = HealthCompletionGate(finish)
             let queue = DispatchQueue(label: "com.maosdevops.health.tcp", qos: .utility)
             let connection = NWConnection(host: NWEndpoint.Host(endpoint.host), port: port, using: .tcp)
@@ -141,5 +141,238 @@ private final class HealthCompletionGate {
         completed = true
         lock.unlock()
         handler(healthy, summary)
+    }
+}
+
+final class HealthChecksViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+    private let server: Server
+    private let table = NSTableView()
+    private var checks: [HealthCheck] = []
+    private var results: [UUID: HealthCheckResult] = [:]
+    private var lastRun: [UUID: Date] = [:]
+    private var timer: DispatchSourceTimer?
+    private var running: Set<UUID> = []
+
+    init(server: Server) {
+        self.server = server
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() {
+        let root = NSView()
+        let title = NSTextField(labelWithString: "Health Checks")
+        title.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
+        title.translatesAutoresizingMaskIntoConstraints = false
+        let add = NSButton(title: "Add", target: self, action: #selector(addCheck))
+        let edit = NSButton(title: "Edit", target: self, action: #selector(editCheck))
+        let remove = NSButton(title: "Delete", target: self, action: #selector(deleteCheck))
+        let run = NSButton(title: "Run Now", target: self, action: #selector(runSelected))
+        let bar = NSStackView(views: [add, edit, remove, run])
+        bar.spacing = 6
+        bar.translatesAutoresizingMaskIntoConstraints = false
+
+        table.dataSource = self
+        table.delegate = self
+        table.rowHeight = 25
+        for (id, label, width) in [("name", "Name", 150), ("kind", "Type", 70),
+                                   ("target", "Target", 260), ("status", "Status", 220)] as [(String, String, CGFloat)] {
+            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
+            column.title = label
+            column.width = width
+            table.addTableColumn(column)
+        }
+        let scroll = NSScrollView()
+        scroll.documentView = table
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        root.addSubview(title)
+        root.addSubview(bar)
+        root.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
+            title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            bar.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            bar.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
+        ])
+        view = root
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        timer?.cancel()
+        reload()
+        runDue(force: true)
+        let source = DispatchSource.makeTimerSource(queue: .main)
+        source.schedule(deadline: .now() + 5, repeating: 5)
+        source.setEventHandler { [weak self] in self?.runDue(force: false) }
+        timer = source
+        source.resume()
+    }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        timer?.cancel()
+        timer = nil
+    }
+
+    private func reload() {
+        checks = (try? AppServices.shared.storage.allHealthChecks(serverId: server.id)) ?? []
+        table.reloadData()
+    }
+
+    private func selected() -> HealthCheck? {
+        let row = table.selectedRow
+        guard row >= 0, row < checks.count else { return nil }
+        return checks[row]
+    }
+
+    private func runDue(force: Bool) {
+        let now = Date()
+        for check in checks where !running.contains(check.id) {
+            let due = lastRun[check.id].map { now.timeIntervalSince($0) >= Double(max(5, check.intervalSeconds)) } ?? true
+            if force || due { run(check) }
+        }
+    }
+
+    private func run(_ check: HealthCheck) {
+        running.insert(check.id)
+        table.reloadData()
+        AppServices.shared.healthChecks.run(check, server: server) { [weak self] result in
+            self?.running.remove(check.id)
+            self?.lastRun[check.id] = result.checkedAt
+            self?.results[check.id] = result
+            self?.table.reloadData()
+        }
+    }
+
+    @objc private func runSelected() { if let check = selected() { run(check) } }
+    @objc private func addCheck() { presentEditor(nil) }
+    @objc private func editCheck() { if let check = selected() { presentEditor(check) } }
+    @objc private func deleteCheck() {
+        guard let check = selected() else { return }
+        try? AppServices.shared.storage.deleteHealthCheck(id: check.id)
+        results[check.id] = nil
+        reload()
+    }
+
+    private func presentEditor(_ check: HealthCheck?) {
+        presentAsSheet(HealthCheckEditorViewController(server: server, check: check) { [weak self] in
+            self?.reload()
+            self?.runDue(force: true)
+        })
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { checks.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let check = checks[row]
+        let value: String
+        switch tableColumn?.identifier.rawValue {
+        case "name": value = check.name
+        case "kind": value = check.kind.rawValue.uppercased()
+        case "target": value = check.target
+        case "status":
+            if running.contains(check.id) {
+                value = "◌ Checking…"
+            } else if let result = results[check.id] {
+                value = "\(result.healthy ? "●" : "●") \(result.summary)  \(result.durationMilliseconds) ms"
+            } else { value = "• Not checked" }
+        default: value = ""
+        }
+        let cell = NSTableCellView()
+        let field = NSTextField(labelWithString: value)
+        field.font = NSFont.systemFont(ofSize: 12)
+        if tableColumn?.identifier.rawValue == "status", let result = results[check.id] {
+            field.textColor = result.healthy ? .systemGreen : .systemRed
+        }
+        field.lineBreakMode = .byTruncatingTail
+        field.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(field)
+        NSLayoutConstraint.activate([
+            field.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+            field.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+            field.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+        ])
+        return cell
+    }
+}
+
+private final class HealthCheckEditorViewController: NSViewController {
+    private let server: Server
+    private var check: HealthCheck?
+    private let onSave: () -> Void
+    private let nameField = NSTextField(string: "")
+    private let kindPopup = NSPopUpButton()
+    private let targetField = NSTextField(string: "")
+    private let intervalField = NSTextField(string: "30")
+
+    init(server: Server, check: HealthCheck?, onSave: @escaping () -> Void) {
+        self.server = server
+        self.check = check
+        self.onSave = onSave
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() {
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 430, height: 250))
+        kindPopup.addItems(withTitles: ["http", "tcp", "shell"])
+        if let check = check {
+            nameField.stringValue = check.name
+            kindPopup.selectItem(withTitle: check.kind.rawValue)
+            targetField.stringValue = check.target
+            intervalField.stringValue = "\(check.intervalSeconds)"
+        }
+        let form = NSGridView(views: [
+            [NSTextField(labelWithString: "Name"), nameField],
+            [NSTextField(labelWithString: "Type"), kindPopup],
+            [NSTextField(labelWithString: "URL / host:port / command"), targetField],
+            [NSTextField(labelWithString: "Interval, sec"), intervalField]
+        ])
+        form.rowSpacing = 8
+        form.columnSpacing = 10
+        form.translatesAutoresizingMaskIntoConstraints = false
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelEdit))
+        let save = NSButton(title: "Save", target: self, action: #selector(saveEdit))
+        let buttons = NSStackView(views: [cancel, save])
+        buttons.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(form)
+        root.addSubview(buttons)
+        NSLayoutConstraint.activate([
+            form.topAnchor.constraint(equalTo: root.topAnchor, constant: 18),
+            form.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 18),
+            form.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -18),
+            targetField.widthAnchor.constraint(greaterThanOrEqualToConstant: 220),
+            buttons.trailingAnchor.constraint(equalTo: form.trailingAnchor),
+            buttons.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
+        ])
+        view = root
+    }
+
+    @objc private func cancelEdit() { dismiss(nil) }
+    @objc private func saveEdit() {
+        let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = targetField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !target.isEmpty else { return }
+        var value = check ?? HealthCheck(name: name, serverId: server.id, kind: .http, target: target)
+        value.name = name
+        value.serverId = server.id
+        value.kind = HealthCheck.Kind(rawValue: kindPopup.titleOfSelectedItem ?? "http") ?? .http
+        value.target = target
+        value.intervalSeconds = max(5, Int(intervalField.stringValue) ?? 30)
+        try? AppServices.shared.storage.saveHealthCheck(value)
+        onSave()
+        dismiss(nil)
     }
 }

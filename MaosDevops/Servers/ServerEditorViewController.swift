@@ -131,6 +131,11 @@ final class ServerEditorViewController: NSViewController {
             statusLabel.stringValue = "Name, host and username are required."
             return
         }
+        guard (1...65_535).contains(port), !host.contains(where: { $0.isWhitespace }),
+              !user.contains(where: { $0.isWhitespace }), !user.hasPrefix("-") else {
+            statusLabel.stringValue = "Check host, username and port (1–65535)."
+            return
+        }
 
         var server = existing ?? Server(name: name, host: host, username: user)
         server.name = name
@@ -139,6 +144,10 @@ final class ServerEditorViewController: NSViewController {
         server.username = user
         server.authType = authPopup.indexOfSelectedItem == 0 ? .password : .sshKey
         server.privateKeyPath = keyPathField.stringValue.isEmpty ? nil : keyPathField.stringValue
+        if server.authType == .sshKey && server.privateKeyPath == nil {
+            statusLabel.stringValue = "Private key path is required for SSH Key auth."
+            return
+        }
         server.group = ServerGroup(rawValue: groupPopup.titleOfSelectedItem ?? "") ?? .personal
         server.isFavorite = favoriteButton.state == .on
         server.notes = notesField.stringValue

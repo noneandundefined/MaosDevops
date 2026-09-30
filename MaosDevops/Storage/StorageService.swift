@@ -132,6 +132,21 @@ final class StorageService {
                 interval_seconds INTEGER NOT NULL
             );
             """)
+            try execLocked("""
+            CREATE TABLE IF NOT EXISTS deploy_workflows (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                server_id TEXT NOT NULL,
+                project_id TEXT,
+                working_directory TEXT,
+                step_commands_json TEXT NOT NULL,
+                stop_on_error INTEGER NOT NULL,
+                confirmation_required INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            );
+            """)
+            try? execLocked("ALTER TABLE deploy_workflows ADD COLUMN working_directory TEXT;")
             try execLocked("CREATE INDEX IF NOT EXISTS idx_mon_server_ts ON monitoring_samples(server_id, ts);")
             loadPreferencesLocked()
         }
@@ -195,6 +210,14 @@ final class StorageService {
             defer { sqlite3_finalize(mon) }
             bindText(mon, 1, id.uuidString)
             try stepDone(mon)
+            for sql in ["DELETE FROM health_checks WHERE server_id=?;",
+                        "DELETE FROM deploy_workflows WHERE server_id=?;",
+                        "DELETE FROM actions WHERE server_id=?;"] {
+                let related = try prepareLocked(sql)
+                defer { sqlite3_finalize(related) }
+                bindText(related, 1, id.uuidString)
+                try stepDone(related)
+            }
         }
     }
 
@@ -317,6 +340,19 @@ final class StorageService {
         }
     }
 
+    func deleteProject(id: UUID) throws {
+        try queue.sync {
+            let stmt = try prepareLocked("DELETE FROM projects WHERE id=?;")
+            defer { sqlite3_finalize(stmt) }
+            bindText(stmt, 1, id.uuidString)
+            try stepDone(stmt)
+            let workflows = try prepareLocked("DELETE FROM deploy_workflows WHERE project_id=?;")
+            defer { sqlite3_finalize(workflows) }
+            bindText(workflows, 1, id.uuidString)
+            try stepDone(workflows)
+        }
+    }
+
     // MARK: - Health checks
 
     func allHealthChecks(serverId: UUID? = nil) throws -> [HealthCheck] {
@@ -372,6 +408,70 @@ final class StorageService {
         }
     }
 
+    // MARK: - Deploy workflows
+
+    func allDeployWorkflows(projectId: UUID? = nil) throws -> [DeployWorkflow] {
+        try queue.sync {
+            let sql = projectId == nil
+                ? "SELECT id,name,server_id,project_id,working_directory,step_commands_json,stop_on_error,confirmation_required,created_at,updated_at FROM deploy_workflows ORDER BY name;"
+                : "SELECT id,name,server_id,project_id,working_directory,step_commands_json,stop_on_error,confirmation_required,created_at,updated_at FROM deploy_workflows WHERE project_id=? ORDER BY name;"
+            let stmt = try prepareLocked(sql)
+            defer { sqlite3_finalize(stmt) }
+            if let projectId = projectId { bindText(stmt, 1, projectId.uuidString) }
+            var result: [DeployWorkflow] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                let json = text(stmt, 5) ?? "[]"
+                let commands = (try? JSONDecoder().decode([String].self, from: Data(json.utf8))) ?? []
+                result.append(DeployWorkflow(
+                    id: UUID(uuidString: text(stmt, 0) ?? "") ?? UUID(),
+                    name: text(stmt, 1) ?? "",
+                    serverId: UUID(uuidString: text(stmt, 2) ?? "") ?? UUID(),
+                    projectId: text(stmt, 3).flatMap(UUID.init(uuidString:)),
+                    workingDirectory: text(stmt, 4),
+                    stepCommands: commands,
+                    stopOnError: sqlite3_column_int(stmt, 6) != 0,
+                    confirmationRequired: sqlite3_column_int(stmt, 7) != 0,
+                    createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 8)),
+                    updatedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 9))
+                ))
+            }
+            return result
+        }
+    }
+
+    func saveDeployWorkflow(_ workflow: DeployWorkflow) throws {
+        try queue.sync {
+            let commands = String(data: (try? JSONEncoder().encode(workflow.stepCommands)) ?? Data("[]".utf8), encoding: .utf8) ?? "[]"
+            let stmt = try prepareLocked("""
+            INSERT INTO deploy_workflows(id,name,server_id,project_id,working_directory,step_commands_json,stop_on_error,confirmation_required,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,server_id=excluded.server_id,
+              project_id=excluded.project_id,working_directory=excluded.working_directory,step_commands_json=excluded.step_commands_json,stop_on_error=excluded.stop_on_error,
+              confirmation_required=excluded.confirmation_required,updated_at=excluded.updated_at;
+            """)
+            defer { sqlite3_finalize(stmt) }
+            bindText(stmt, 1, workflow.id.uuidString)
+            bindText(stmt, 2, workflow.name)
+            bindText(stmt, 3, workflow.serverId.uuidString)
+            if let projectId = workflow.projectId { bindText(stmt, 4, projectId.uuidString) } else { sqlite3_bind_null(stmt, 4) }
+            if let directory = workflow.workingDirectory { bindText(stmt, 5, directory) } else { sqlite3_bind_null(stmt, 5) }
+            bindText(stmt, 6, commands)
+            sqlite3_bind_int(stmt, 7, workflow.stopOnError ? 1 : 0)
+            sqlite3_bind_int(stmt, 8, workflow.confirmationRequired ? 1 : 0)
+            sqlite3_bind_double(stmt, 9, workflow.createdAt.timeIntervalSince1970)
+            sqlite3_bind_double(stmt, 10, workflow.updatedAt.timeIntervalSince1970)
+            try stepDone(stmt)
+        }
+    }
+
+    func deleteDeployWorkflow(id: UUID) throws {
+        try queue.sync {
+            let stmt = try prepareLocked("DELETE FROM deploy_workflows WHERE id=?;")
+            defer { sqlite3_finalize(stmt) }
+            bindText(stmt, 1, id.uuidString)
+            try stepDone(stmt)
+        }
+    }
+
     // MARK: - Preferences / monitoring
 
     func savePreferences(_ prefs: AppPreferences) throws {
@@ -407,6 +507,59 @@ final class StorageService {
             bindText(prune, 1, serverId.uuidString)
             sqlite3_bind_double(prune, 2, cutoff)
             try stepDone(prune)
+        }
+    }
+
+    func monitoringSamples(serverId: UUID, since: Date) throws -> [MonitoringSample] {
+        try queue.sync {
+            let stmt = try prepareLocked("""
+            SELECT ts,cpu,ram,disk,load1,net_rx,net_tx
+            FROM monitoring_samples WHERE server_id=? AND ts>=? ORDER BY ts ASC;
+            """)
+            defer { sqlite3_finalize(stmt) }
+            bindText(stmt, 1, serverId.uuidString)
+            sqlite3_bind_double(stmt, 2, since.timeIntervalSince1970)
+            var result: [MonitoringSample] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                result.append(MonitoringSample(
+                    timestamp: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 0)),
+                    cpu: sqlite3_column_double(stmt, 1),
+                    ram: sqlite3_column_double(stmt, 2),
+                    disk: sqlite3_column_double(stmt, 3),
+                    load1: sqlite3_column_double(stmt, 4),
+                    netRx: sqlite3_column_double(stmt, 5),
+                    netTx: sqlite3_column_double(stmt, 6)
+                ))
+            }
+            return result
+        }
+    }
+
+    func latestMonitoringSnapshots() throws -> [UUID: ServerSnapshot] {
+        try queue.sync {
+            let stmt = try prepareLocked("""
+            SELECT m.server_id,m.ts,m.cpu,m.ram,m.disk,m.load1,m.net_rx,m.net_tx
+            FROM monitoring_samples m
+            INNER JOIN (SELECT server_id,MAX(ts) AS newest FROM monitoring_samples GROUP BY server_id) latest
+              ON latest.server_id=m.server_id AND latest.newest=m.ts;
+            """)
+            defer { sqlite3_finalize(stmt) }
+            var result: [UUID: ServerSnapshot] = [:]
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                guard let id = UUID(uuidString: text(stmt, 0) ?? "") else { continue }
+                let date = Date(timeIntervalSince1970: sqlite3_column_double(stmt, 1))
+                var snapshot = ServerSnapshot()
+                snapshot.status = Date().timeIntervalSince(date) < 90 ? .online : .unknown
+                snapshot.updatedAt = date
+                snapshot.cpuPercent = sqlite3_column_double(stmt, 2)
+                snapshot.ramPercent = sqlite3_column_double(stmt, 3)
+                snapshot.diskPercent = sqlite3_column_double(stmt, 4)
+                snapshot.load1 = sqlite3_column_double(stmt, 5)
+                snapshot.netRxBytesPerSec = sqlite3_column_double(stmt, 6)
+                snapshot.netTxBytesPerSec = sqlite3_column_double(stmt, 7)
+                result[id] = snapshot
+            }
+            return result
         }
     }
 

@@ -22,18 +22,29 @@ struct ProblemItem {
     let severity: Severity
     let title: String
     let suggestedAction: String
+    let actionCommand: String?
+
+    init(severity: Severity, title: String, suggestedAction: String, actionCommand: String? = nil) {
+        self.severity = severity
+        self.title = title
+        self.suggestedAction = suggestedAction
+        self.actionCommand = actionCommand
+    }
 }
 
 enum ProblemsDetector {
     static func detect(snapshot: ServerSnapshot) -> [ProblemItem] {
         var items: [ProblemItem] = []
         if snapshot.diskPercent >= 90 {
-            items.append(ProblemItem(severity: .critical, title: "🔴 Disk usage \(Int(snapshot.diskPercent))%", suggestedAction: "View Logs"))
+            items.append(ProblemItem(severity: .critical, title: "🔴 Disk usage \(Int(snapshot.diskPercent))%",
+                                     suggestedAction: "Inspect", actionCommand: "df -h /"))
         } else if snapshot.diskPercent >= 80 {
-            items.append(ProblemItem(severity: .warning, title: "🟠 Disk usage \(Int(snapshot.diskPercent))%", suggestedAction: "Inspect"))
+            items.append(ProblemItem(severity: .warning, title: "🟠 Disk usage \(Int(snapshot.diskPercent))%",
+                                     suggestedAction: "Inspect", actionCommand: "df -h /"))
         }
         if snapshot.ramPercent >= 90 {
-            items.append(ProblemItem(severity: .warning, title: "🟠 RAM usage \(Int(snapshot.ramPercent))%", suggestedAction: "Terminal"))
+            items.append(ProblemItem(severity: .warning, title: "🟠 RAM usage \(Int(snapshot.ramPercent))%",
+                                     suggestedAction: "Inspect", actionCommand: "free -h"))
         }
         if snapshot.status == .offline {
             items.append(ProblemItem(severity: .critical, title: "🔴 Server offline", suggestedAction: "Terminal"))

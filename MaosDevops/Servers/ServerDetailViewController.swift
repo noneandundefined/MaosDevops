@@ -6,6 +6,7 @@ final class ServerDetailViewController: NSViewController {
     private let container = ContentContainerViewController()
     private var snapshot = ServerSnapshot()
     private var isVisible = false
+    private var availableTabs = ServerDetailTab.allCases
 
     init(server: Server) {
         self.server = server
@@ -33,10 +34,7 @@ final class ServerDetailViewController: NSViewController {
         subtitle.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
         subtitle.translatesAutoresizingMaskIntoConstraints = false
 
-        tabControl.segmentCount = ServerDetailTab.allCases.count
-        for (i, tab) in ServerDetailTab.allCases.enumerated() {
-            tabControl.setLabel(tab.title, forSegment: i)
-        }
+        configureTabs(selecting: .overview)
         tabControl.selectedSegment = 0
         tabControl.target = self
         tabControl.action = #selector(tabChanged)
@@ -82,6 +80,7 @@ final class ServerDetailViewController: NSViewController {
         AppServices.shared.monitoring.start(for: server) { [weak self] snap in
             guard let self = self, self.isVisible else { return }
             self.snapshot = snap
+            self.updateAvailableTabs(for: snap)
             NotificationCenter.default.post(name: .serverSnapshotUpdated, object: self.server.id, userInfo: ["snapshot": snap])
         }
     }
@@ -106,8 +105,32 @@ final class ServerDetailViewController: NSViewController {
 
     @objc private func tabChanged() {
         let idx = tabControl.selectedSegment
-        guard idx >= 0, idx < ServerDetailTab.allCases.count else { return }
-        showTab(ServerDetailTab.allCases[idx])
+        guard idx >= 0, idx < availableTabs.count else { return }
+        showTab(availableTabs[idx])
+    }
+
+    private func updateAvailableTabs(for snapshot: ServerSnapshot) {
+        guard snapshot.status == .online else { return }
+        let selected = tabControl.selectedSegment >= 0 && tabControl.selectedSegment < availableTabs.count
+            ? availableTabs[tabControl.selectedSegment] : .overview
+        let next = ServerDetailTab.allCases.filter { tab in
+            if tab == .docker { return snapshot.dockerAvailable }
+            if tab == .services { return snapshot.systemdAvailable }
+            return true
+        }
+        guard next != availableTabs else { return }
+        availableTabs = next
+        let target = next.contains(selected) ? selected : .overview
+        configureTabs(selecting: target)
+        if target != selected { showTab(target) }
+    }
+
+    private func configureTabs(selecting tab: ServerDetailTab) {
+        tabControl.segmentCount = availableTabs.count
+        for (index, item) in availableTabs.enumerated() {
+            tabControl.setLabel(item.title, forSegment: index)
+        }
+        tabControl.selectedSegment = availableTabs.firstIndex(of: tab) ?? 0
     }
 
     private func showTab(_ tab: ServerDetailTab) {
@@ -128,6 +151,10 @@ final class ServerDetailViewController: NSViewController {
             container.embed(ServerMonitoringViewController(server: server))
         case .actions:
             container.embed(ServerActionsViewController(server: server))
+        case .git:
+            container.embed(GitViewController(server: server))
+        case .health:
+            container.embed(HealthChecksViewController(server: server))
         }
     }
 }

@@ -3,12 +3,16 @@ import Cocoa
 /// Simple multi-tab SSH terminal. Commands run off the main thread.
 final class TerminalViewController: NSViewController, NSTabViewDelegate {
     private let server: Server
+    private let remoteCommand: String
+    private let dismissable: Bool
     private let tabView = NSTabView()
     private let toolbar = NSStackView()
     private var sessions: [UUID: TerminalSessionController] = [:]
 
-    init(server: Server) {
+    init(server: Server, remoteCommand: String = "exec $SHELL -l", dismissable: Bool = false) {
         self.server = server
+        self.remoteCommand = remoteCommand
+        self.dismissable = dismissable
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -18,7 +22,7 @@ final class TerminalViewController: NSViewController, NSTabViewDelegate {
     }
 
     override func loadView() {
-        let root = NSView()
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 500))
 
         let newTab = NSButton(title: "+ Tab", target: self, action: #selector(addTab))
         let closeTab = NSButton(title: "Close Tab", target: self, action: #selector(closeCurrentTab))
@@ -28,6 +32,9 @@ final class TerminalViewController: NSViewController, NSTabViewDelegate {
         toolbar.addArrangedSubview(newTab)
         toolbar.addArrangedSubview(closeTab)
         toolbar.addArrangedSubview(reconnect)
+        if dismissable {
+            toolbar.addArrangedSubview(NSButton(title: "Close", target: self, action: #selector(closeSheet)))
+        }
         toolbar.translatesAutoresizingMaskIntoConstraints = false
 
         tabView.delegate = self
@@ -59,7 +66,7 @@ final class TerminalViewController: NSViewController, NSTabViewDelegate {
 
     @objc private func addTab() {
         let id = UUID()
-        let session = TerminalSessionController(server: server)
+        let session = TerminalSessionController(server: server, remoteCommand: remoteCommand)
         sessions[id] = session
         let item = NSTabViewItem(identifier: id.uuidString)
         item.label = "SSH \(sessions.count)"
@@ -86,10 +93,13 @@ final class TerminalViewController: NSViewController, NSTabViewDelegate {
             addTab()
         }
     }
+
+    @objc private func closeSheet() { dismiss(nil) }
 }
 
 final class TerminalSessionController: NSViewController, NSTextViewDelegate, NSTextFieldDelegate {
     private let server: Server
+    private let remoteCommand: String
     private let scrollView = NSScrollView()
     private let textView = NSTextView()
     private let inputField = NSTextField()
@@ -103,8 +113,9 @@ final class TerminalSessionController: NSViewController, NSTextViewDelegate, NST
     private var lastTerminalSize = NSSize.zero
     private let maxCharacters = 200_000
 
-    init(server: Server) {
+    init(server: Server, remoteCommand: String = "exec $SHELL -l") {
         self.server = server
+        self.remoteCommand = remoteCommand
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -167,7 +178,8 @@ final class TerminalSessionController: NSViewController, NSTextViewDelegate, NST
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             do {
-                let process = try AppServices.shared.sshManager.session(for: self.server).makeInteractiveProcess()
+                let process = try AppServices.shared.sshManager.session(for: self.server)
+                    .makeInteractiveProcess(remoteCommand: self.remoteCommand)
                 let input = Pipe()
                 let output = Pipe()
                 let error = Pipe()

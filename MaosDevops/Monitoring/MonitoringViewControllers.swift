@@ -39,23 +39,73 @@ final class GlobalDashboardViewController: NSViewController {
 }
 
 final class GlobalMonitoringViewController: NSViewController {
+    private let cpuField = NSTextField(string: "5")
+    private let diskField = NSTextField(string: "30")
+    private let dockerField = NSTextField(string: "8")
+    private let bufferField = NSTextField(string: "10000")
+    private let historyField = NSTextField(string: "24")
+    private let status = NSTextField(labelWithString: "")
+
     override func loadView() {
         let root = NSView()
         let title = NSTextField(labelWithString: "Monitoring")
         title.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
         title.translatesAutoresizingMaskIntoConstraints = false
-        let hint = NSTextField(wrappingLabelWithString: "Open a server → Monitoring tab for live CPU/RAM/Disk charts (15m / 1h / 24h history from SQLite). Global polling is disabled to protect low-RAM Macs.")
+        let hint = NSTextField(wrappingLabelWithString: "Polling runs only while a server screen is visible. Values below are deliberately conservative for Intel Macs with 4 GB RAM.")
         hint.translatesAutoresizingMaskIntoConstraints = false
+        let prefs = AppServices.shared.storage.preferences
+        cpuField.stringValue = "\(prefs.cpuRamPollSeconds)"
+        diskField.stringValue = "\(prefs.diskPollSeconds)"
+        dockerField.stringValue = "\(prefs.dockerPollSeconds)"
+        bufferField.stringValue = "\(prefs.logBufferMaxLines)"
+        historyField.stringValue = "\(prefs.monitoringHistoryHours)"
+        let grid = NSGridView(views: [
+            [NSTextField(labelWithString: "CPU / RAM interval, sec"), cpuField],
+            [NSTextField(labelWithString: "Disk interval, sec"), diskField],
+            [NSTextField(labelWithString: "Docker interval, sec"), dockerField],
+            [NSTextField(labelWithString: "Maximum log lines"), bufferField],
+            [NSTextField(labelWithString: "History, hours"), historyField]
+        ])
+        grid.rowSpacing = 8
+        grid.columnSpacing = 12
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        let save = NSButton(title: "Save Settings", target: self, action: #selector(saveSettings))
+        save.translatesAutoresizingMaskIntoConstraints = false
+        status.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(title)
         root.addSubview(hint)
+        root.addSubview(grid)
+        root.addSubview(save)
+        root.addSubview(status)
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
             title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             hint.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
             hint.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            hint.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16)
+            hint.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            grid.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 18),
+            grid.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+            save.topAnchor.constraint(equalTo: grid.bottomAnchor, constant: 14),
+            save.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+            status.centerYAnchor.constraint(equalTo: save.centerYAnchor),
+            status.leadingAnchor.constraint(equalTo: save.trailingAnchor, constant: 10)
         ])
         view = root
+    }
+
+    @objc private func saveSettings() {
+        var prefs = AppServices.shared.storage.preferences
+        prefs.cpuRamPollSeconds = max(2, Int(cpuField.stringValue) ?? 5)
+        prefs.diskPollSeconds = max(10, Int(diskField.stringValue) ?? 30)
+        prefs.dockerPollSeconds = max(5, Int(dockerField.stringValue) ?? 8)
+        prefs.logBufferMaxLines = min(20_000, max(5_000, Int(bufferField.stringValue) ?? 10_000))
+        prefs.monitoringHistoryHours = min(168, max(1, Int(historyField.stringValue) ?? 24))
+        do {
+            try AppServices.shared.storage.savePreferences(prefs)
+            status.stringValue = "Saved"
+        } catch {
+            status.stringValue = error.localizedDescription
+        }
     }
 }
 
@@ -63,6 +113,9 @@ final class ServerMonitoringViewController: NSViewController {
     private let server: Server
     private let metrics = NSTextField(wrappingLabelWithString: "Waiting for samples…")
     private let rangeControl = NSSegmentedControl(labels: ["15 min", "1 hour", "24 hours"], trackingMode: .selectOne, target: nil, action: nil)
+    private let cpuChart = HistoryChartView(title: "CPU", color: .systemBlue)
+    private let ramChart = HistoryChartView(title: "RAM", color: .systemGreen)
+    private let diskChart = HistoryChartView(title: "Disk", color: .systemOrange)
 
     init(server: Server) {
         self.server = server
@@ -75,6 +128,8 @@ final class ServerMonitoringViewController: NSViewController {
     override func loadView() {
         let root = NSView()
         rangeControl.selectedSegment = 0
+        rangeControl.target = self
+        rangeControl.action = #selector(rangeChanged)
         rangeControl.translatesAutoresizingMaskIntoConstraints = false
         metrics.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         metrics.translatesAutoresizingMaskIntoConstraints = false
@@ -84,6 +139,12 @@ final class ServerMonitoringViewController: NSViewController {
         root.addSubview(title)
         root.addSubview(rangeControl)
         root.addSubview(metrics)
+        let charts = NSStackView(views: [cpuChart, ramChart, diskChart])
+        charts.orientation = .vertical
+        charts.spacing = 8
+        charts.distribution = .fillEqually
+        charts.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(charts)
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
             title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
@@ -91,7 +152,11 @@ final class ServerMonitoringViewController: NSViewController {
             rangeControl.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
             metrics.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 16),
             metrics.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            metrics.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16)
+            metrics.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            charts.topAnchor.constraint(equalTo: metrics.bottomAnchor, constant: 12),
+            charts.leadingAnchor.constraint(equalTo: metrics.leadingAnchor),
+            charts.trailingAnchor.constraint(equalTo: metrics.trailingAnchor),
+            charts.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
         ])
         view = root
     }
@@ -99,6 +164,11 @@ final class ServerMonitoringViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         NotificationCenter.default.addObserver(self, selector: #selector(onSnap(_:)), name: .serverSnapshotUpdated, object: nil)
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        loadHistory()
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -116,7 +186,76 @@ final class ServerMonitoringViewController: NSViewController {
         Up   \(Formatters.uptime(snap.uptimeSeconds))
 
         Samples are stored in SQLite and pruned to monitoringHistoryHours.
-        Simple sparkline charts can be layered later without raising the deployment target.
         """
+        loadHistory()
+    }
+
+    @objc private func rangeChanged() { loadHistory() }
+
+    private func loadHistory() {
+        let seconds: TimeInterval
+        switch rangeControl.selectedSegment {
+        case 1: seconds = 3_600
+        case 2: seconds = 86_400
+        default: seconds = 900
+        }
+        let values = (try? AppServices.shared.storage.monitoringSamples(
+            serverId: server.id, since: Date().addingTimeInterval(-seconds))) ?? []
+        let reduced = downsample(values, maximum: 700)
+        cpuChart.values = reduced.map(\.cpu)
+        ramChart.values = reduced.map(\.ram)
+        diskChart.values = reduced.map(\.disk)
+    }
+
+    private func downsample(_ samples: [MonitoringSample], maximum: Int) -> [MonitoringSample] {
+        guard samples.count > maximum else { return samples }
+        let stride = Double(samples.count) / Double(maximum)
+        return (0..<maximum).map { samples[min(samples.count - 1, Int(Double($0) * stride))] }
+    }
+}
+
+private final class HistoryChartView: NSView {
+    let title: String
+    let color: NSColor
+    var values: [Double] = [] { didSet { needsDisplay = true } }
+
+    init(title: String, color: NSColor) {
+        self.title = title
+        self.color = color
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        NSColor.controlBackgroundColor.setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 5, yRadius: 5).fill()
+
+        let label = "\(title)  \(values.last.map { String(format: "%.0f%%", $0) } ?? "—")"
+        label.draw(at: NSPoint(x: 8, y: bounds.height - 20), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: NSColor.labelColor
+        ])
+        guard values.count > 1 else { return }
+        let plot = bounds.insetBy(dx: 8, dy: 8)
+        let top = plot.maxY - 18
+        let height = max(1, top - plot.minY)
+        let path = NSBezierPath()
+        path.lineWidth = 1.5
+        for (index, raw) in values.enumerated() {
+            let x = plot.minX + CGFloat(index) / CGFloat(values.count - 1) * plot.width
+            let normalized = min(100, max(0, raw)) / 100
+            let point = NSPoint(x: x, y: plot.minY + CGFloat(normalized) * height)
+            if index == 0 {
+                path.move(to: point)
+            } else {
+                path.line(to: point)
+            }
+        }
+        color.setStroke()
+        path.stroke()
     }
 }

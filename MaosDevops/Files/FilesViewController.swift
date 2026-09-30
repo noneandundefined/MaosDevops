@@ -69,17 +69,18 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
 
     @objc private func openPath() {
         let path = pathField.stringValue
-        // SFTP via SSH + ls (no direct docker socket; sftp binary through ssh)
-        let cmd = "ls -la --time-style=long-iso \(shellEscape(path)) 2>/dev/null | tail -n +2"
-        AppServices.shared.sshManager.execute(on: server, command: cmd) { [weak self] result in
+        runSFTP(command: "ls -la \(sftpQuote(path))") { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success(let r):
-                self.entries = r.stdout.split(separator: "\n").compactMap { line in
+                self.entries = r.split(separator: "\n").compactMap { line in
                     let s = String(line)
-                    guard s.count > 10 else { return nil }
+                    guard s.count > 10, s.first == "d" || s.first == "-" || s.first == "l" else { return nil }
                     let isDir = s.hasPrefix("d")
-                    let name = s.split(separator: " ").last.map(String.init) ?? s
+                    let fields = s.split(maxSplits: 8, omittingEmptySubsequences: true,
+                                         whereSeparator: { $0 == " " || $0 == "\t" })
+                    guard fields.count >= 9 else { return nil }
+                    let name = String(fields[8]).components(separatedBy: " -> ").first ?? String(fields[8])
                     guard name != "." && name != ".." else { return nil }
                     return RemoteFileEntry(name: name, isDirectory: isDir, listing: s)
                 }
@@ -128,9 +129,7 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let full = (pathField.stringValue as NSString).appendingPathComponent(field.stringValue)
-        AppServices.shared.sshManager.execute(on: server, command: "mkdir -p \(shellEscape(full))") { [weak self] _ in
-            self?.openPath()
-        }
+        runSFTP(command: "mkdir \(sftpQuote(full))") { [weak self] _ in self?.openPath() }
     }
 
     @objc private func deleteEntry() {
@@ -142,8 +141,8 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let full = (pathField.stringValue as NSString).appendingPathComponent(e.name)
-        let cmd = e.isDirectory ? "rm -rf \(shellEscape(full))" : "rm -f \(shellEscape(full))"
-        AppServices.shared.sshManager.execute(on: server, command: cmd) { [weak self] _ in self?.openPath() }
+        let cmd = e.isDirectory ? "rmdir \(sftpQuote(full))" : "rm \(sftpQuote(full))"
+        runSFTP(command: cmd) { [weak self] _ in self?.openPath() }
     }
 
     @objc private func rename() {
@@ -158,9 +157,7 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let from = (pathField.stringValue as NSString).appendingPathComponent(e.name)
         let to = (pathField.stringValue as NSString).appendingPathComponent(field.stringValue)
-        AppServices.shared.sshManager.execute(on: server, command: "mv \(shellEscape(from)) \(shellEscape(to))") { [weak self] _ in
-            self?.openPath()
-        }
+        runSFTP(command: "rename \(sftpQuote(from)) \(sftpQuote(to))") { [weak self] _ in self?.openPath() }
     }
 
     @objc private func upload() {
@@ -169,8 +166,8 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let remote = (pathField.stringValue as NSString).appendingPathComponent(url.lastPathComponent)
-        runSFTP(command: "put \(sftpQuote(url.path)) \(sftpQuote(remote))") { [weak self] success in
-            if success { self?.openPath() }
+        runSFTP(command: "put \(sftpQuote(url.path)) \(sftpQuote(remote))") { [weak self] result in
+            if case .success = result { self?.openPath() }
         }
     }
 
@@ -194,16 +191,19 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
             alert.runModal()
             return
         }
-        AppServices.shared.sshManager.execute(on: server, command: "wc -c < \(shellEscape(full)); echo '---'; head -c 512000 \(shellEscape(full))") { [weak self] result in
-            guard let self = self, case .success(let r) = result else { return }
-            let parts = r.stdout.components(separatedBy: "\n---\n")
-            let body = parts.count > 1 ? parts[1] : r.stdout
+        let local = (NSTemporaryDirectory() as NSString).appendingPathComponent("maosdevops-edit-\(UUID().uuidString)")
+        runSFTP(command: "get \(sftpQuote(full)) \(sftpQuote(local))") { [weak self] result in
+            guard let self = self, case .success = result else { return }
+            defer { try? FileManager.default.removeItem(atPath: local) }
+            guard let data = FileManager.default.contents(atPath: local), data.count <= 512_000,
+                  let body = String(data: data, encoding: .utf8) else {
+                let alert = NSAlert()
+                alert.messageText = "File must be UTF-8 text and no larger than 500 KB."
+                alert.runModal()
+                return
+            }
             self.presentAsSheet(SimpleTextEditorViewController(server: self.server, path: full, content: body))
         }
-    }
-
-    private func shellEscape(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private func sftpQuote(_ value: String) -> String {
@@ -212,38 +212,24 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
             .replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
 
-    private func runSFTP(command: String, completion: ((Bool) -> Void)? = nil) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            do {
-                let process = try AppServices.shared.sshManager.session(for: self.server).makeSFTPProcess()
-                let input = Pipe()
-                let error = Pipe()
-                process.standardInput = input
-                process.standardError = error
-                try process.run()
-                input.fileHandleForWriting.write(Data((command + "\n").utf8))
-                input.fileHandleForWriting.closeFile()
-                process.waitUntilExit()
-                let message = String(data: error.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                DispatchQueue.main.async {
-                    let success = process.terminationStatus == 0
-                    if !success {
-                        let alert = NSAlert()
-                        alert.messageText = "SFTP failed"
-                        alert.informativeText = message.isEmpty ? "Exit code \(process.terminationStatus)" : message
-                        alert.runModal()
-                    }
-                    completion?(success)
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    let alert = NSAlert()
-                    alert.messageText = "SFTP failed"
-                    alert.informativeText = error.localizedDescription
-                    alert.runModal()
-                    completion?(false)
-                }
+    private func runSFTP(command: String, completion: ((Result<String, Error>) -> Void)? = nil) {
+        AppServices.shared.sshManager.sftp(on: server, command: command) { result in
+            switch result {
+            case .success(let value) where value.exitCode == 0:
+                completion?(.success(value.stdout))
+            case .success(let value):
+                let error = SSHError.commandFailed(value.exitCode, value.stderr)
+                let alert = NSAlert()
+                alert.messageText = "SFTP failed"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+                completion?(.failure(error))
+            case .failure(let error):
+                let alert = NSAlert()
+                alert.messageText = "SFTP failed"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+                completion?(.failure(error))
             }
         }
     }
@@ -321,18 +307,30 @@ final class SimpleTextEditorViewController: NSViewController {
     @objc private func closeSheet() { dismiss(nil) }
 
     @objc private func save() {
-        // Write via SSH heredoc — keep files modest
-        let b64 = Data(textView.string.utf8).base64EncodedString()
-        let escapedPath = "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        let cmd = "printf '%s' '\(b64)' | base64 --decode > \(escapedPath)"
-        AppServices.shared.sshManager.execute(on: server, command: cmd) { [weak self] result in
-            if case .failure(let e) = result {
+        let local = (NSTemporaryDirectory() as NSString).appendingPathComponent("maosdevops-save-\(UUID().uuidString)")
+        do {
+            try Data(textView.string.utf8).write(to: URL(fileURLWithPath: local), options: .atomic)
+        } catch {
+            return
+        }
+        let quote: (String) -> String = { value in
+            "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }
+        AppServices.shared.sshManager.sftp(on: server, command: "put \(quote(local)) \(quote(path))") { [weak self] result in
+            try? FileManager.default.removeItem(atPath: local)
+            switch result {
+            case .success(let value) where value.exitCode == 0:
+                self?.dismiss(nil)
+            case .success(let value):
                 let alert = NSAlert()
                 alert.messageText = "Save failed"
-                alert.informativeText = e.localizedDescription
+                alert.informativeText = value.stderr
                 alert.runModal()
-            } else {
-                self?.dismiss(nil)
+            case .failure(let error):
+                let alert = NSAlert()
+                alert.messageText = "Save failed"
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
             }
         }
     }

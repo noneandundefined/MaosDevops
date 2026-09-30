@@ -1,0 +1,470 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+	BXMDE8J7NCIOT0P1QZVFGK34H /* ActionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */; };
+	BIG0X5ZYKC1H3F9P6J2QBATES /* ServerDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */; };
+	BX2D1PBU97E0Q84TKOZGYWR6N /* MonitoringViewControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */; };
+	B6D5JNZAY2XMWH1GK830BT74F /* ServerEditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FQ3ZN6PD1O2MJW50VHXRAF9IB /* ServerEditorViewController.swift */; };
+	BHZWL3P8TBRYIMAXFN7K1EGC4 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FULZCXENWY5QR03MDGF9KPJ4I /* MainWindowController.swift */; };
+	BET74ZNA30S8XWCUHGO59F1P6 /* SidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FQDPXH64GVM8AFI1RWZ9N3LEO /* SidebarViewController.swift */; };
+	BQ1E3VMKHB6NLR97GS8YW0UAP /* MonitoringService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FY8P5XEZTFN24U0K1DAVRMC36 /* MonitoringService.swift */; };
+	BIW4R76ZGUVOFBYS1JXTPKNH3 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1N9MWGX2D7IRJHSU4QP3OVE8 /* StorageService.swift */; };
+	BVXCS81ZDYM7IT0A69PQF3WGB /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FG17VTDEWHK5MCIPF4O6Y8QNS /* KeychainService.swift */; };
+	B7Q1B4O9CDFJU5XSVMT6A2YHZ /* ServersListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4U7Q1ZWKH5IRT9MO3NVD8YES /* ServersListViewController.swift */; };
+	BRK45Z3PVAHI9T0Y7NCEWD12F /* LogsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRE3B4LTX0MDO5KYC17JN2WHI /* LogsViewController.swift */; };
+	BK7JIBR6EXG3HTUV4SNPMWZ5C /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59Z4U0X73RYWNVSDGBMIPJ8L /* Formatters.swift */; };
+	B1NRWH70Y3DGO85PTMX42FISZ /* Server.swift in Sources */ = {isa = PBXBuildFile; fileRef = FI81OY7B0MW5NQJ3AKSUPV9G2 /* Server.swift */; };
+	BUWB80S1GIYA2LJNVO7RHCXK3 /* DockerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRZH01WS4GOLCBTIK6VY8E3XM /* DockerViewController.swift */; };
+	BND4IZHQ3SP69XJ7FTU81K25R /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FSFBV1OQT4KJAG8L5CR69DPI3 /* AppDelegate.swift */; };
+	BYR7C90PAH6JG1M238BOSQD5N /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAEKIF5B8OL0YM43CJWPU2ZDV /* AppServices.swift */; };
+	B6BH7UDZAOK0L2YFMVCSN98WR /* ServerOverviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9Q7AM1JW23ZIOD6RTLGEFXNH /* ServerOverviewViewController.swift */; };
+	BYGXBE4CIPZA1HR37SWLKV9T2 /* Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FHQZSV6GDAY9MPW5E3I8JL2N1 /* Actions.swift */; };
+	BAC23T549QZ0SNLBYKOX16I8H /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FVC6UK738WGFQLZY2SH0XEPI4 /* Preferences.swift */; };
+	BWUYE4CFHGLNZPX501BOT7VDR /* SystemdViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FTFAO5MZLIXN3RQPC6HVWKJS8 /* SystemdViewController.swift */; };
+	BQSAD7W36INLY5ERTMO421PJZ /* HealthCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2R16XZ9LQYFJBHOMAV308SKG /* HealthCheck.swift */; };
+	B5UST7RVH4F2OCXGIWQ18ZKM6 /* ActionsListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FXDFNVKU216WICLZ50JM4YGBQ /* ActionsListViewController.swift */; };
+	BH6VY3U42C97GQ8XEIJLBS0NZ /* GitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRYS9N415WHLT628F0JAPGOZ7 /* GitService.swift */; };
+	B43NH7JI2XSMWCG9ZU5T186YK /* ProjectsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FUG0M35XAC2OE9Y4VWFT1DPQI /* ProjectsViewController.swift */; };
+	BBSJZ8CYRD7W2MIA3K50OQPNE /* SSHConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AL5FJO2ZXIDWP9NSUY6KBV4 /* SSHConnectionManager.swift */; };
+	BCTOW6ZU4AKRP5JL1BY90DN3F /* FilesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAL93D5QR0PU8XSOKWFVECHGT /* FilesViewController.swift */; };
+	B1UYXMLCK03J5GSBE4PIW2O79 /* TerminalViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FSOVFAT8C36PZYWGXHQR9DN2L /* TerminalViewController.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+	A10000000000000000000006 /* MaosDevOps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MaosDevOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
+	A10000000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+	A10000000000000000000012 /* MaosDevops.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MaosDevops.entitlements; sourceTree = "<group>"; };
+	FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRunner.swift; sourceTree = "<group>"; };
+	FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailViewController.swift; sourceTree = "<group>"; };
+	F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringViewControllers.swift; sourceTree = "<group>"; };
+	FQ3ZN6PD1O2MJW50VHXRAF9IB /* ServerEditorViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEditorViewController.swift; sourceTree = "<group>"; };
+	FULZCXENWY5QR03MDGF9KPJ4I /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
+	FQDPXH64GVM8AFI1RWZ9N3LEO /* SidebarViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewController.swift; sourceTree = "<group>"; };
+	FY8P5XEZTFN24U0K1DAVRMC36 /* MonitoringService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringService.swift; sourceTree = "<group>"; };
+	F1N9MWGX2D7IRJHSU4QP3OVE8 /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
+	FG17VTDEWHK5MCIPF4O6Y8QNS /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+	F4U7Q1ZWKH5IRT9MO3NVD8YES /* ServersListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServersListViewController.swift; sourceTree = "<group>"; };
+	FRE3B4LTX0MDO5KYC17JN2WHI /* LogsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsViewController.swift; sourceTree = "<group>"; };
+	F59Z4U0X73RYWNVSDGBMIPJ8L /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+	FI81OY7B0MW5NQJ3AKSUPV9G2 /* Server.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Server.swift; sourceTree = "<group>"; };
+	FRZH01WS4GOLCBTIK6VY8E3XM /* DockerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerViewController.swift; sourceTree = "<group>"; };
+	FSFBV1OQT4KJAG8L5CR69DPI3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+	FAEKIF5B8OL0YM43CJWPU2ZDV /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
+	F9Q7AM1JW23ZIOD6RTLGEFXNH /* ServerOverviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerOverviewViewController.swift; sourceTree = "<group>"; };
+	FHQZSV6GDAY9MPW5E3I8JL2N1 /* Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actions.swift; sourceTree = "<group>"; };
+	FVC6UK738WGFQLZY2SH0XEPI4 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+	FTFAO5MZLIXN3RQPC6HVWKJS8 /* SystemdViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemdViewController.swift; sourceTree = "<group>"; };
+	F2R16XZ9LQYFJBHOMAV308SKG /* HealthCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthCheck.swift; sourceTree = "<group>"; };
+	FXDFNVKU216WICLZ50JM4YGBQ /* ActionsListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsListViewController.swift; sourceTree = "<group>"; };
+	FRYS9N415WHLT628F0JAPGOZ7 /* GitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitService.swift; sourceTree = "<group>"; };
+	FUG0M35XAC2OE9Y4VWFT1DPQI /* ProjectsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsViewController.swift; sourceTree = "<group>"; };
+	F8AL5FJO2ZXIDWP9NSUY6KBV4 /* SSHConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConnectionManager.swift; sourceTree = "<group>"; };
+	FAL93D5QR0PU8XSOKWFVECHGT /* FilesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesViewController.swift; sourceTree = "<group>"; };
+	FSOVFAT8C36PZYWGXHQR9DN2L /* TerminalViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalViewController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+	A10000000000000000000005 /* Frameworks */ = {
+		isa = PBXFrameworksBuildPhase;
+		buildActionMask = 2147483647;
+		files = (
+		);
+		runOnlyForDeploymentPostprocessing = 0;
+	};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+	A10000000000000000000007 = {
+		isa = PBXGroup;
+		children = (
+			A10000000000000000000009 /* MaosDevops */,
+			A10000000000000000000008 /* Products */,
+		);
+		sourceTree = "<group>";
+	};
+	A10000000000000000000008 /* Products */ = {
+		isa = PBXGroup;
+		children = (
+			A10000000000000000000006 /* MaosDevOps.app */,
+		);
+		name = Products;
+		sourceTree = "<group>";
+	};
+	A1000000000000000000000A /* Resources */ = {
+		isa = PBXGroup;
+		children = (
+			A10000000000000000000011 /* Info.plist */,
+			A10000000000000000000012 /* MaosDevops.entitlements */,
+		);
+		path = Resources;
+		sourceTree = "<group>";
+	};
+	GYPI3GJL4QU682OTHBSCNRKF5 /* Actions */ = {
+		isa = PBXGroup;
+		children = (
+			FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */,
+			FXDFNVKU216WICLZ50JM4YGBQ /* ActionsListViewController.swift */,
+		);
+		path = Actions;
+		sourceTree = "<group>";
+	};
+	GQIJNZMGCD8L2TU7PVF9HRKSX /* App */ = {
+		isa = PBXGroup;
+		children = (
+			FSFBV1OQT4KJAG8L5CR69DPI3 /* AppDelegate.swift */,
+			FAEKIF5B8OL0YM43CJWPU2ZDV /* AppServices.swift */,
+		);
+		path = App;
+		sourceTree = "<group>";
+	};
+	GE6X8BPQJH09CZAW1MK5NGDLU /* Docker */ = {
+		isa = PBXGroup;
+		children = (
+			FRZH01WS4GOLCBTIK6VY8E3XM /* DockerViewController.swift */,
+		);
+		path = Docker;
+		sourceTree = "<group>";
+	};
+	GQNLV4MG6KPAW03ZC2BTEX9O7 /* Files */ = {
+		isa = PBXGroup;
+		children = (
+			FAL93D5QR0PU8XSOKWFVECHGT /* FilesViewController.swift */,
+		);
+		path = Files;
+		sourceTree = "<group>";
+	};
+	GDTJU3HOY791N4EL5Z6RKFWXG /* Git */ = {
+		isa = PBXGroup;
+		children = (
+			FRYS9N415WHLT628F0JAPGOZ7 /* GitService.swift */,
+		);
+		path = Git;
+		sourceTree = "<group>";
+	};
+	GEV6U3YRJPOK78BIMDSZH2XG4 /* Keychain */ = {
+		isa = PBXGroup;
+		children = (
+			FG17VTDEWHK5MCIPF4O6Y8QNS /* KeychainService.swift */,
+		);
+		path = Keychain;
+		sourceTree = "<group>";
+	};
+	GBTZ75WLGM2R4CH0D8JXESKIN /* Logs */ = {
+		isa = PBXGroup;
+		children = (
+			FRE3B4LTX0MDO5KYC17JN2WHI /* LogsViewController.swift */,
+		);
+		path = Logs;
+		sourceTree = "<group>";
+	};
+	G5AWX7BMHIGECRU0QF2V4SDOY /* Models */ = {
+		isa = PBXGroup;
+		children = (
+			FHQZSV6GDAY9MPW5E3I8JL2N1 /* Actions.swift */,
+			F2R16XZ9LQYFJBHOMAV308SKG /* HealthCheck.swift */,
+			FVC6UK738WGFQLZY2SH0XEPI4 /* Preferences.swift */,
+			FI81OY7B0MW5NQJ3AKSUPV9G2 /* Server.swift */,
+		);
+		path = Models;
+		sourceTree = "<group>";
+	};
+	G2178ERJ6INHX9AG0ZKLVMDQ5 /* Monitoring */ = {
+		isa = PBXGroup;
+		children = (
+			FY8P5XEZTFN24U0K1DAVRMC36 /* MonitoringService.swift */,
+			F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */,
+		);
+		path = Monitoring;
+		sourceTree = "<group>";
+	};
+	GCOZUPQ3WKX9M1GH5B2FA0T7D /* Projects */ = {
+		isa = PBXGroup;
+		children = (
+			FUG0M35XAC2OE9Y4VWFT1DPQI /* ProjectsViewController.swift */,
+		);
+		path = Projects;
+		sourceTree = "<group>";
+	};
+	GSIN71FZTV4JYROUCDHL6WB98 /* Servers */ = {
+		isa = PBXGroup;
+		children = (
+			FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */,
+			FQ3ZN6PD1O2MJW50VHXRAF9IB /* ServerEditorViewController.swift */,
+			F9Q7AM1JW23ZIOD6RTLGEFXNH /* ServerOverviewViewController.swift */,
+			F4U7Q1ZWKH5IRT9MO3NVD8YES /* ServersListViewController.swift */,
+		);
+		path = Servers;
+		sourceTree = "<group>";
+	};
+	GZWM7T0BKCE465JDX2OQLS31P /* SSH */ = {
+		isa = PBXGroup;
+		children = (
+			F8AL5FJO2ZXIDWP9NSUY6KBV4 /* SSHConnectionManager.swift */,
+		);
+		path = SSH;
+		sourceTree = "<group>";
+	};
+	GSN75Z2YP4AFLC0BGXQDJ31I6 /* Storage */ = {
+		isa = PBXGroup;
+		children = (
+			F1N9MWGX2D7IRJHSU4QP3OVE8 /* StorageService.swift */,
+		);
+		path = Storage;
+		sourceTree = "<group>";
+	};
+	GGOEV2N1AXS4MD98FL6KB0WZ3 /* Systemd */ = {
+		isa = PBXGroup;
+		children = (
+			FTFAO5MZLIXN3RQPC6HVWKJS8 /* SystemdViewController.swift */,
+		);
+		path = Systemd;
+		sourceTree = "<group>";
+	};
+	GAWCO6Q7PIRUVTK5MBE318H9D /* Terminal */ = {
+		isa = PBXGroup;
+		children = (
+			FSOVFAT8C36PZYWGXHQR9DN2L /* TerminalViewController.swift */,
+		);
+		path = Terminal;
+		sourceTree = "<group>";
+	};
+	GM1LF7Z3DYRSJ2GNI6P80CVTH /* UI */ = {
+		isa = PBXGroup;
+		children = (
+			FULZCXENWY5QR03MDGF9KPJ4I /* MainWindowController.swift */,
+			FQDPXH64GVM8AFI1RWZ9N3LEO /* SidebarViewController.swift */,
+		);
+		path = UI;
+		sourceTree = "<group>";
+	};
+	GK2J4BZI5HCXOFQRN3WY9AP6D /* Utilities */ = {
+		isa = PBXGroup;
+		children = (
+			F59Z4U0X73RYWNVSDGBMIPJ8L /* Formatters.swift */,
+		);
+		path = Utilities;
+		sourceTree = "<group>";
+	};
+	A10000000000000000000009 /* MaosDevops */ = {
+		isa = PBXGroup;
+		children = (
+			GYPI3GJL4QU682OTHBSCNRKF5 /* Actions */,
+			GQIJNZMGCD8L2TU7PVF9HRKSX /* App */,
+			GE6X8BPQJH09CZAW1MK5NGDLU /* Docker */,
+			GQNLV4MG6KPAW03ZC2BTEX9O7 /* Files */,
+			GDTJU3HOY791N4EL5Z6RKFWXG /* Git */,
+			GEV6U3YRJPOK78BIMDSZH2XG4 /* Keychain */,
+			GBTZ75WLGM2R4CH0D8JXESKIN /* Logs */,
+			G5AWX7BMHIGECRU0QF2V4SDOY /* Models */,
+			G2178ERJ6INHX9AG0ZKLVMDQ5 /* Monitoring */,
+			GCOZUPQ3WKX9M1GH5B2FA0T7D /* Projects */,
+			GSIN71FZTV4JYROUCDHL6WB98 /* Servers */,
+			GZWM7T0BKCE465JDX2OQLS31P /* SSH */,
+			GSN75Z2YP4AFLC0BGXQDJ31I6 /* Storage */,
+			GGOEV2N1AXS4MD98FL6KB0WZ3 /* Systemd */,
+			GAWCO6Q7PIRUVTK5MBE318H9D /* Terminal */,
+			GM1LF7Z3DYRSJ2GNI6P80CVTH /* UI */,
+			GK2J4BZI5HCXOFQRN3WY9AP6D /* Utilities */,
+			A1000000000000000000000A /* Resources */,
+		);
+		path = MaosDevops;
+		sourceTree = "<group>";
+	};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+	A10000000000000000000002 /* MaosDevOps */ = {
+		isa = PBXNativeTarget;
+		buildConfigurationList = A1000000000000000000000C /* Build configuration list for PBXNativeTarget "MaosDevOps" */;
+		buildPhases = (
+			A10000000000000000000003 /* Sources */,
+			A10000000000000000000005 /* Frameworks */,
+			A10000000000000000000004 /* Resources */,
+		);
+		buildRules = (
+		);
+		dependencies = (
+		);
+		name = MaosDevOps;
+		productName = MaosDevOps;
+		productReference = A10000000000000000000006 /* MaosDevOps.app */;
+		productType = "com.apple.product-type.application";
+	};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+	A10000000000000000000001 /* Project object */ = {
+		isa = PBXProject;
+		attributes = {
+			BuildIndependentTargetsInParallel = 1;
+			LastSwiftUpdateCheck = 1500;
+			LastUpgradeCheck = 1500;
+		};
+		buildConfigurationList = A1000000000000000000000B /* Build configuration list for PBXProject "MaosDevops" */;
+		compatibilityVersion = "Xcode 12.0";
+		developmentRegion = en;
+		hasScannedForEncodings = 0;
+		knownRegions = (
+			en,
+			Base,
+		);
+		mainGroup = A10000000000000000000007;
+		productRefGroup = A10000000000000000000008 /* Products */;
+		projectDirPath = "";
+		projectRoot = "";
+		targets = (
+			A10000000000000000000002 /* MaosDevOps */,
+		);
+	};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+	A10000000000000000000004 /* Resources */ = {
+		isa = PBXResourcesBuildPhase;
+		buildActionMask = 2147483647;
+		files = (
+		);
+		runOnlyForDeploymentPostprocessing = 0;
+	};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+	A10000000000000000000003 /* Sources */ = {
+		isa = PBXSourcesBuildPhase;
+		buildActionMask = 2147483647;
+		files = (
+			BXMDE8J7NCIOT0P1QZVFGK34H /* ActionRunner.swift in Sources */,
+			B5UST7RVH4F2OCXGIWQ18ZKM6 /* ActionsListViewController.swift in Sources */,
+			BND4IZHQ3SP69XJ7FTU81K25R /* AppDelegate.swift in Sources */,
+			BYR7C90PAH6JG1M238BOSQD5N /* AppServices.swift in Sources */,
+			BUWB80S1GIYA2LJNVO7RHCXK3 /* DockerViewController.swift in Sources */,
+			BCTOW6ZU4AKRP5JL1BY90DN3F /* FilesViewController.swift in Sources */,
+			BH6VY3U42C97GQ8XEIJLBS0NZ /* GitService.swift in Sources */,
+			BVXCS81ZDYM7IT0A69PQF3WGB /* KeychainService.swift in Sources */,
+			BRK45Z3PVAHI9T0Y7NCEWD12F /* LogsViewController.swift in Sources */,
+			BYGXBE4CIPZA1HR37SWLKV9T2 /* Actions.swift in Sources */,
+			BQSAD7W36INLY5ERTMO421PJZ /* HealthCheck.swift in Sources */,
+			BAC23T549QZ0SNLBYKOX16I8H /* Preferences.swift in Sources */,
+			B1NRWH70Y3DGO85PTMX42FISZ /* Server.swift in Sources */,
+			BQ1E3VMKHB6NLR97GS8YW0UAP /* MonitoringService.swift in Sources */,
+			BX2D1PBU97E0Q84TKOZGYWR6N /* MonitoringViewControllers.swift in Sources */,
+			B43NH7JI2XSMWCG9ZU5T186YK /* ProjectsViewController.swift in Sources */,
+			BIG0X5ZYKC1H3F9P6J2QBATES /* ServerDetailViewController.swift in Sources */,
+			B6D5JNZAY2XMWH1GK830BT74F /* ServerEditorViewController.swift in Sources */,
+			B6BH7UDZAOK0L2YFMVCSN98WR /* ServerOverviewViewController.swift in Sources */,
+			B7Q1B4O9CDFJU5XSVMT6A2YHZ /* ServersListViewController.swift in Sources */,
+			BBSJZ8CYRD7W2MIA3K50OQPNE /* SSHConnectionManager.swift in Sources */,
+			BIW4R76ZGUVOFBYS1JXTPKNH3 /* StorageService.swift in Sources */,
+			BWUYE4CFHGLNZPX501BOT7VDR /* SystemdViewController.swift in Sources */,
+			B1UYXMLCK03J5GSBE4PIW2O79 /* TerminalViewController.swift in Sources */,
+			BHZWL3P8TBRYIMAXFN7K1EGC4 /* MainWindowController.swift in Sources */,
+			BET74ZNA30S8XWCUHGO59F1P6 /* SidebarViewController.swift in Sources */,
+			BK7JIBR6EXG3HTUV4SNPMWZ5C /* Formatters.swift in Sources */,
+		);
+		runOnlyForDeploymentPostprocessing = 0;
+	};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+	A1000000000000000000000D /* Debug */ = {
+		isa = XCBuildConfiguration;
+		buildSettings = {
+			ALWAYS_SEARCH_USER_PATHS = NO;
+			CLANG_ENABLE_MODULES = YES;
+			CLANG_ENABLE_OBJC_ARC = YES;
+			COPY_PHASE_STRIP = NO;
+			DEBUG_INFORMATION_FORMAT = dwarf;
+			GCC_DYNAMIC_NO_PIC = NO;
+			GCC_OPTIMIZATION_LEVEL = 0;
+			MACOSX_DEPLOYMENT_TARGET = 10.15;
+			ONLY_ACTIVE_ARCH = YES;
+			SDKROOT = macosx;
+			SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+			SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			SWIFT_VERSION = 5.0;
+		};
+		name = Debug;
+	};
+	A1000000000000000000000E /* Release */ = {
+		isa = XCBuildConfiguration;
+		buildSettings = {
+			ALWAYS_SEARCH_USER_PATHS = NO;
+			CLANG_ENABLE_MODULES = YES;
+			CLANG_ENABLE_OBJC_ARC = YES;
+			MACOSX_DEPLOYMENT_TARGET = 10.15;
+			SDKROOT = macosx;
+			SWIFT_COMPILATION_MODE = wholemodule;
+			SWIFT_VERSION = 5.0;
+		};
+		name = Release;
+	};
+	A1000000000000000000000F /* Debug */ = {
+		isa = XCBuildConfiguration;
+		buildSettings = {
+			ARCHS = x86_64;
+			CODE_SIGN_ENTITLEMENTS = MaosDevops/Resources/MaosDevops.entitlements;
+			CODE_SIGN_STYLE = Automatic;
+			COMBINE_HIDPI_IMAGES = YES;
+			INFOPLIST_FILE = MaosDevops/Resources/Info.plist;
+			LD_RUNPATH_SEARCH_PATHS = (
+				"$(inherited)",
+				"@executable_path/../Frameworks",
+			);
+			MACOSX_DEPLOYMENT_TARGET = 10.15;
+			PRODUCT_BUNDLE_IDENTIFIER = com.maosdevops.app;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SWIFT_VERSION = 5.0;
+		};
+		name = Debug;
+	};
+	A10000000000000000000010 /* Release */ = {
+		isa = XCBuildConfiguration;
+		buildSettings = {
+			ARCHS = x86_64;
+			CODE_SIGN_ENTITLEMENTS = MaosDevops/Resources/MaosDevops.entitlements;
+			CODE_SIGN_STYLE = Automatic;
+			COMBINE_HIDPI_IMAGES = YES;
+			INFOPLIST_FILE = MaosDevops/Resources/Info.plist;
+			LD_RUNPATH_SEARCH_PATHS = (
+				"$(inherited)",
+				"@executable_path/../Frameworks",
+			);
+			MACOSX_DEPLOYMENT_TARGET = 10.15;
+			PRODUCT_BUNDLE_IDENTIFIER = com.maosdevops.app;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SUPPORTED_PLATFORMS = macosx;
+			SWIFT_VERSION = 5.0;
+			VALIDATE_PRODUCT = YES;
+		};
+		name = Release;
+	};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+	A1000000000000000000000B /* Build configuration list for PBXProject "MaosDevops" */ = {
+		isa = XCConfigurationList;
+		buildConfigurations = (
+			A1000000000000000000000D /* Debug */,
+			A1000000000000000000000E /* Release */,
+		);
+		defaultConfigurationIsVisible = 0;
+		defaultConfigurationName = Release;
+	};
+	A1000000000000000000000C /* Build configuration list for PBXNativeTarget "MaosDevOps" */ = {
+		isa = XCConfigurationList;
+		buildConfigurations = (
+			A1000000000000000000000F /* Debug */,
+			A10000000000000000000010 /* Release */,
+		);
+		defaultConfigurationIsVisible = 0;
+		defaultConfigurationName = Release;
+	};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000001 /* Project object */;
+}

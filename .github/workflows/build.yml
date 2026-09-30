@@ -1,0 +1,93 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build, validate and package Catalina Intel app
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            app_version="${GITHUB_REF_NAME#v}"
+          else
+            app_version="0.1.${GITHUB_RUN_NUMBER}"
+          fi
+
+          build_log="$RUNNER_TEMP/maosdevops-package.log"
+          set +e
+          APP_VERSION="$app_version" \
+            BUILD_NUMBER="$GITHUB_RUN_NUMBER" \
+            bash Scripts/package.sh 2>&1 | tee "$build_log"
+          build_status=${PIPESTATUS[0]}
+          set -e
+
+          if [[ $build_status -ne 0 ]]; then
+            while IFS= read -r line; do
+              escaped="${line//'%'/'%25'}"
+              escaped="${escaped//$'\r'/'%0D'}"
+              escaped="${escaped//$'\n'/'%0A'}"
+              echo "::error title=macOS build failed::$escaped"
+            done < <(grep -E '(^|:)[0-9]+:[0-9]+: error:|(^| )error:' "$build_log" | tail -n 20 || true)
+            exit "$build_status"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaosDevOps-macOS-10.15-Intel
+          path: |
+            dist/MaosDevOps-macOS-10.15-Intel.zip
+            dist/MaosDevOps-macOS-10.15-Intel.dmg
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/release-notes.md"
+          cat > "$notes" <<'RELEASE_NOTES'
+          MaosDevOps is a lightweight native AppKit client for managing Linux servers over SSH.
+
+          Requirements: macOS Catalina 10.15 or newer and an Intel (`x86_64`) Mac.
+
+          The public build is ad-hoc signed. On first launch, right-click the app and choose **Open** if macOS asks for confirmation.
+          RELEASE_NOTES
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/MaosDevOps-macOS-10.15-Intel.zip \
+              dist/MaosDevOps-macOS-10.15-Intel.dmg \
+              dist/SHA256SUMS.txt --clobber
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "MaosDevOps $GITHUB_REF_NAME" \
+              --notes-file "$notes" \
+              --latest
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/MaosDevOps-macOS-10.15-Intel.zip \
+              dist/MaosDevOps-macOS-10.15-Intel.dmg \
+              dist/SHA256SUMS.txt \
+              --title "MaosDevOps $GITHUB_REF_NAME" \
+              --notes-file "$notes" \
+              --latest
+          fi

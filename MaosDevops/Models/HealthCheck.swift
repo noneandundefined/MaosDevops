@@ -76,11 +76,14 @@ final class HealthCheckRunner {
                 finish(false, "Use host:port")
                 return
             }
-            let port = NWEndpoint.Port(rawValue: endpoint.port)
+            guard let port = NWEndpoint.Port(rawValue: endpoint.port) else {
+                finish(false, "Port must be between 1 and 65535")
+                return
+            }
             let gate = HealthCompletionGate(finish)
             let queue = DispatchQueue(label: "com.maosdevops.health.tcp", qos: .utility)
             let connection = NWConnection(host: NWEndpoint.Host(endpoint.host), port: port, using: .tcp)
-            connection.stateUpdateHandler = { state in
+            connection.stateUpdateHandler = { (state: NWConnection.State) in
                 switch state {
                 case .ready:
                     gate.complete(true, "Connected")

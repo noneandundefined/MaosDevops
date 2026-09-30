@@ -72,7 +72,7 @@ final class TerminalViewController: NSViewController, NSTabViewDelegate {
         item.label = "SSH \(sessions.count)"
         item.viewController = session
         tabView.addTabViewItem(item)
-        tabView.select(item)
+        tabView.selectTabViewItem(item)
         session.connect()
     }
 
@@ -247,11 +247,7 @@ final class TerminalSessionController: NSViewController, NSTextViewDelegate, NST
             append("Not connected. Press Reconnect.\n")
             return
         }
-        do {
-            try stdinHandle.write(contentsOf: data)
-        } catch {
-            append("Write failed: \(error.localizedDescription)\n")
-        }
+        stdinHandle.write(data)
     }
 
     override func viewDidLayout() {
@@ -284,7 +280,7 @@ final class TerminalSessionController: NSViewController, NSTextViewDelegate, NST
         let rows = max(5, Int(size.height / 15.0))
         let command = "stty cols \(columns) rows \(rows) >/dev/null 2>&1\n"
         if let data = command.data(using: .utf8) {
-            try? stdinHandle.write(contentsOf: data)
+            stdinHandle.write(data)
         }
     }
 

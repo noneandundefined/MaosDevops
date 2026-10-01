@@ -27,7 +27,7 @@
 | Health Checks | **готово** | Сохраняемые HTTP/TCP/shell проверки, интервальный runner только на видимом экране, status и latency. |
 | Projects | **готово** | CRUD, выбор серверов и Actions проекта, SQLite и отдельные сохраняемые deploy workflows. |
 | Производительность | **готово для MVP** | Lazy screens, polling только на видимом сервере, bounded logs/terminal/command output, WAL SQLite, максимум четыре SSH-команды, без blur/тяжёлых анимаций и сторонних зависимостей. Нужен отдельный Instruments-профиль на реальном Intel Mac 4 ГБ перед стабильным релизом. |
-| GitHub Actions / релиз | **готово** | `macos-15-intel`, Release x86_64, target 10.15, ZIP, DMG, SHA256, artifact upload и release по тегам `v*`. |
+| GitHub Actions / релиз | **готово** | `macos-15-intel`, Release x86_64, target 10.15, ZIP, DMG, SHA256, artifact upload и release по тегам `v*`; автоматическая и ручная проверка новых GitHub Releases. |
 
 ## Критерий релиза
 

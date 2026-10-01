@@ -70,6 +70,7 @@ final class MainWindowController: NSWindowController {
         )
         window.title = "MaosDevOps"
         window.minSize = NSSize(width: 900, height: 560)
+        window.isReleasedWhenClosed = false
         window.center()
         window.titlebarAppearsTransparent = false
         // Avoid heavy vibrancy / blur on Catalina low-RAM machines

@@ -29,6 +29,7 @@ Silicon.
 - **Secure local storage** — credentials stay in macOS Keychain; SQLite stores only secret identifiers.
 - **Operational workspace** — terminal, monitoring, Docker, systemd, logs, SFTP, Git and deploy workflows.
 - **No remote service required** — servers and configuration are managed locally from the Mac.
+- **Update awareness** — checks GitHub Releases after launch and provides a manual **Check for Updates…** command.
 
 ## Features
 
@@ -85,7 +86,7 @@ bash Scripts/build.sh
 Create the same ZIP and DMG artifacts used by GitHub Actions:
 
 ```bash
-APP_VERSION=0.1.1 BUILD_NUMBER=1 bash Scripts/package.sh
+APP_VERSION=0.1.2 BUILD_NUMBER=1 bash Scripts/package.sh
 ```
 
 The packaging script validates the final Mach-O architecture, minimum macOS

@@ -25,6 +25,16 @@ struct SSHCommandResult {
     let stderr: String
 }
 
+struct SSHFileTransferProgress {
+    let completedBytes: Int64
+    let totalBytes: Int64
+
+    var fractionCompleted: Double {
+        guard totalBytes > 0 else { return completedBytes > 0 ? 1.0 : 0.0 }
+        return min(1.0, max(0.0, Double(completedBytes) / Double(totalBytes)))
+    }
+}
+
 /// A cancellable remote process. Cancellation is safe before or after the
 /// underlying `ssh` process has started.
 final class SSHStream {
@@ -250,6 +260,52 @@ final class SSHSession {
         process.arguments = args
         applyAuthEnvironment(to: process)
         return process
+    }
+
+    /// Raw SSH process used for streaming file contents without buffering the
+    /// whole file in memory. Reuses ControlMaster and is Catalina-safe.
+    func makeFileTransferProcess(remoteCommand: String) throws -> Process {
+        try workQueue.sync {
+            if !isConnected {
+                try connectLocked()
+            }
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = baseSSHArgs(includeControl: true) + [destination, remoteCommand]
+        applyAuthEnvironment(to: process)
+        return process
+    }
+
+    func remoteFileSize(_ path: String) throws -> Int64 {
+        let result = try executeSync("wc -c < \(shellEscape(path))", timeout: 30)
+        guard result.exitCode == 0,
+              let value = Int64(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw SSHError.commandFailed(result.exitCode, result.stderr)
+        }
+        return value
+    }
+
+    func uploadCommand(remotePath: String, atomic: Bool) -> String {
+        let target = shellEscape(remotePath)
+        guard atomic else {
+            return "cat > \(target)"
+        }
+
+        let temporaryPath = remotePath + ".maos-upload-" + UUID().uuidString.lowercased()
+        let temporary = shellEscape(temporaryPath)
+        return [
+            "set -e",
+            "trap 'rm -f -- \(temporary)' EXIT HUP INT TERM",
+            "cat > \(temporary)",
+            "if [ -e \(target) ]; then chmod --reference=\(target) \(temporary) 2>/dev/null || true; fi",
+            "mv -f -- \(temporary) \(target)",
+            "trap - EXIT"
+        ].joined(separator: "; ")
+    }
+
+    func downloadCommand(remotePath: String) -> String {
+        "cat -- \(shellEscape(remotePath))"
     }
 
     // MARK: - Private
@@ -587,6 +643,174 @@ final class SSHConnectionManager {
                 )
                 DispatchQueue.main.async { completion(.success(result)) }
             } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
+
+    func uploadFile(
+        on server: Server,
+        localURL: URL,
+        remotePath: String,
+        atomic: Bool = true,
+        progress: @escaping (SSHFileTransferProgress) -> Void,
+        completion: @escaping (Result<SSHCommandResult, Error>) -> Void
+    ) {
+        let session = self.session(for: server)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            self.commandSemaphore.wait()
+            defer { self.commandSemaphore.signal() }
+
+            do {
+                let attrs = try FileManager.default.attributesOfItem(atPath: localURL.path)
+                let total = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+                let process = try session.makeFileTransferProcess(
+                    remoteCommand: session.uploadCommand(remotePath: remotePath, atomic: atomic)
+                )
+                let input = Pipe()
+                let output = Pipe()
+                let error = Pipe()
+                process.standardInput = input
+                process.standardOutput = output
+                process.standardError = error
+
+                let reads = DispatchGroup()
+                var stdout = Data()
+                var stderr = Data()
+                reads.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    stdout = output.fileHandleForReading.readDataToEndOfFile()
+                    reads.leave()
+                }
+                reads.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    stderr = error.fileHandleForReading.readDataToEndOfFile()
+                    reads.leave()
+                }
+
+                try process.run()
+                let source = try FileHandle(forReadingFrom: localURL)
+                defer { source.closeFile() }
+
+                var completed: Int64 = 0
+                var lastPercent = -1
+                while process.isRunning {
+                    let chunk = source.readData(ofLength: 64 * 1024)
+                    if chunk.isEmpty { break }
+                    input.fileHandleForWriting.write(chunk)
+                    completed += Int64(chunk.count)
+
+                    let percent = total > 0 ? Int((completed * 100) / total) : 100
+                    if percent != lastPercent {
+                        lastPercent = percent
+                        let snapshot = SSHFileTransferProgress(completedBytes: completed, totalBytes: total)
+                        DispatchQueue.main.async { progress(snapshot) }
+                    }
+                }
+                input.fileHandleForWriting.closeFile()
+                process.waitUntilExit()
+                reads.wait()
+
+                let result = SSHCommandResult(
+                    exitCode: process.terminationStatus,
+                    stdout: String(data: stdout, encoding: .utf8) ?? "",
+                    stderr: String(data: stderr, encoding: .utf8) ?? ""
+                )
+                if result.exitCode == 0 {
+                    let snapshot = SSHFileTransferProgress(completedBytes: total, totalBytes: total)
+                    DispatchQueue.main.async {
+                        progress(snapshot)
+                        completion(.success(result))
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        completion(.failure(SSHError.commandFailed(result.exitCode, result.stderr)))
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
+    func downloadFile(
+        on server: Server,
+        remotePath: String,
+        localURL: URL,
+        progress: @escaping (SSHFileTransferProgress) -> Void,
+        completion: @escaping (Result<SSHCommandResult, Error>) -> Void
+    ) {
+        let session = self.session(for: server)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            self.commandSemaphore.wait()
+            defer { self.commandSemaphore.signal() }
+
+            let partialURL = localURL.deletingLastPathComponent()
+                .appendingPathComponent(".\(localURL.lastPathComponent).maos-part-\(UUID().uuidString)")
+
+            do {
+                let total = try session.remoteFileSize(remotePath)
+                let process = try session.makeFileTransferProcess(
+                    remoteCommand: session.downloadCommand(remotePath: remotePath)
+                )
+                let output = Pipe()
+                let error = Pipe()
+                process.standardOutput = output
+                process.standardError = error
+
+                var stderr = Data()
+                let errorRead = DispatchGroup()
+                errorRead.enter()
+                DispatchQueue.global(qos: .utility).async {
+                    stderr = error.fileHandleForReading.readDataToEndOfFile()
+                    errorRead.leave()
+                }
+
+                FileManager.default.createFile(atPath: partialURL.path, contents: nil)
+                let destination = try FileHandle(forWritingTo: partialURL)
+                defer { destination.closeFile() }
+
+                try process.run()
+                var completed: Int64 = 0
+                var lastPercent = -1
+                while true {
+                    let chunk = output.fileHandleForReading.readData(ofLength: 64 * 1024)
+                    if chunk.isEmpty { break }
+                    destination.write(chunk)
+                    completed += Int64(chunk.count)
+
+                    let percent = total > 0 ? Int((completed * 100) / total) : 100
+                    if percent != lastPercent {
+                        lastPercent = percent
+                        let snapshot = SSHFileTransferProgress(completedBytes: completed, totalBytes: total)
+                        DispatchQueue.main.async { progress(snapshot) }
+                    }
+                }
+
+                process.waitUntilExit()
+                errorRead.wait()
+                let stderrText = String(data: stderr, encoding: .utf8) ?? ""
+                guard process.terminationStatus == 0 else {
+                    try? FileManager.default.removeItem(at: partialURL)
+                    throw SSHError.commandFailed(process.terminationStatus, stderrText)
+                }
+
+                if FileManager.default.fileExists(atPath: localURL.path) {
+                    try FileManager.default.removeItem(at: localURL)
+                }
+                try FileManager.default.moveItem(at: partialURL, to: localURL)
+
+                let result = SSHCommandResult(exitCode: 0, stdout: "", stderr: stderrText)
+                let snapshot = SSHFileTransferProgress(completedBytes: total, totalBytes: total)
+                DispatchQueue.main.async {
+                    progress(snapshot)
+                    completion(.success(result))
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: partialURL)
                 DispatchQueue.main.async { completion(.failure(error)) }
             }
         }

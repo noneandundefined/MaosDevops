@@ -16,29 +16,10 @@ enum SidebarItem: String, CaseIterable {
         case .monitoring: return "Monitoring"
         }
     }
-
-    var symbol: String {
-        switch self {
-        case .dashboard: return "square.grid.2x2"
-        case .servers: return "server.rack"
-        case .projects: return "folder"
-        case .actions: return "bolt"
-        case .monitoring: return "chart.bar"
-        }
-    }
 }
 
 enum ServerDetailTab: String, CaseIterable {
-    case overview
-    case terminal
-    case docker
-    case services
-    case logs
-    case files
-    case monitoring
-    case actions
-    case git
-    case health
+    case overview, terminal, docker, services, logs, files, monitoring, actions, git, health
 
     var title: String {
         switch self {
@@ -60,40 +41,87 @@ final class MainWindowController: NSWindowController {
     private let splitViewController = NSSplitViewController()
     private let sidebarController = SidebarViewController()
     private let contentController = ContentContainerViewController()
+    /// Strong retain independent of AppKit window-controller quirks.
+    private let retainedWindow: NSWindow
 
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 720),
+            contentRect: NSRect(x: 100, y: 100, width: 1100, height: 700),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "MaosDevOps"
-        window.minSize = NSSize(width: 900, height: 560)
+        window.minSize = NSSize(width: 800, height: 500)
         window.isReleasedWhenClosed = false
-        window.center()
+        window.isOpaque = true
+        window.alphaValue = 1.0
+        window.hasShadow = true
+        window.hidesOnDeactivate = false
         window.titlebarAppearsTransparent = false
-        // Avoid heavy vibrancy / blur on Catalina low-RAM machines
         window.backgroundColor = NSColor.windowBackgroundColor
+        // Avoid frame autosave restoring an off-screen rect from a previous broken run.
+        window.setFrameAutosaveName("")
 
+        retainedWindow = window
         super.init(window: window)
 
         sidebarController.delegate = self
-        contentController.embed(ServersListViewController())
 
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarController)
+        // Regular split items — NOT sidebarWithViewController.
+        // The sidebar-style item has caused empty/invisible windows on Catalina.
+        let sidebarItem = NSSplitViewItem(viewController: sidebarController)
+        sidebarItem.canCollapse = false
         sidebarItem.minimumThickness = 180
-        sidebarItem.maximumThickness = 240
+        sidebarItem.maximumThickness = 260
+        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(rawValue: 260)
+
         let contentItem = NSSplitViewItem(viewController: contentController)
+        contentItem.minimumThickness = 500
 
         splitViewController.addSplitViewItem(sidebarItem)
         splitViewController.addSplitViewItem(contentItem)
+        splitViewController.splitView.isVertical = true
+        splitViewController.splitView.dividerStyle = .thin
+
         window.contentViewController = splitViewController
+
+        // Embed default page after the hierarchy exists.
+        contentController.embed(ServersListViewController())
+
+        positionOnMainScreen()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func forcePresent() {
+        positionOnMainScreen()
+        let window = retainedWindow
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.level = .normal
+        window.alphaValue = 1.0
+        window.orderFrontRegardless()
+        window.makeKeyAndOrderFront(nil)
+        showWindow(nil)
+    }
+
+    private func positionOnMainScreen() {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            retainedWindow.center()
+            return
+        }
+        let visible = screen.visibleFrame
+        let width = min(1100, max(800, visible.width - 80))
+        let height = min(700, max(500, visible.height - 80))
+        let x = visible.origin.x + (visible.width - width) / 2
+        let y = visible.origin.y + (visible.height - height) / 2
+        retainedWindow.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
     }
 }
 
@@ -118,7 +146,10 @@ final class ContentContainerViewController: NSViewController {
     private weak var embedded: NSViewController?
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        root.wantsLayer = true
+        root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        view = root
     }
 
     func embed(_ child: NSViewController) {

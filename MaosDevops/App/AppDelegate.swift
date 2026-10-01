@@ -24,20 +24,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         stageLog("willFinishLaunching")
         // Must be a regular app or Dock/window activation stays broken.
-        NSApp.setActivationPolicy(.regular)
+        let policyOK = NSApp.setActivationPolicy(.regular)
+        stageLog("activationPolicy.regular ok=\(policyOK)")
         configureMainMenu()
+        // Create the window early so didFinishLaunching only has to order it front.
+        ensureMainWindowController()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        stageLog("didFinishLaunching")
+        stageLog("didFinishLaunching windows=\(NSApp.windows.count)")
 
-        // Show UI first. Storage/network must never block the first paint.
         showMainWindow()
         stageLog("mainWindowShown")
 
+        // Re-assert after the run loop settles — LaunchServices sometimes steals focus.
+        DispatchQueue.main.async { [weak self] in
+            self?.showMainWindow()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.showMainWindow()
+        }
+
         if isLaunchSmokeTest {
             armSmokeWatchdog(seconds: 15)
-            // Defer one run-loop turn so AppKit can finish ordering the window.
             DispatchQueue.main.async { [weak self] in
                 self?.verifyLaunchForSmokeTest()
             }
@@ -46,20 +55,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         bootstrapServicesInBackground()
 
-        // Do not delay the first window with a network request.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             self?.checkForUpdatesAutomaticallyIfNeeded()
         }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        if NSApp.windows.allSatisfy({ !$0.isVisible }) {
-            showMainWindow()
-        }
+        stageLog("didBecomeActive windows=\(NSApp.windows.count) visible=\(NSApp.windows.filter(\.isVisible).count)")
+        showMainWindow()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { showMainWindow() }
+        stageLog("handleReopen hasVisibleWindows=\(flag)")
+        showMainWindow()
         return true
     }
 
@@ -74,23 +82,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showMainWindow() {
-        stageLog("showMainWindow.begin")
+    private func ensureMainWindowController() {
         if mainWindowController == nil {
             mainWindowController = MainWindowController()
-            stageLog("showMainWindow.controllerCreated")
+            stageLog("controllerCreated")
         }
+    }
 
-        guard let window = mainWindowController?.window else {
+    private func showMainWindow() {
+        stageLog("showMainWindow.begin")
+        ensureMainWindowController()
+        guard let controller = mainWindowController, let window = controller.window else {
             stageLog("showMainWindow.FAILED_nil_window")
             return
         }
-        if window.isMiniaturized { window.deminiaturize(nil) }
-        window.collectionBehavior.insert(.moveToActiveSpace)
-        window.makeKeyAndOrderFront(nil)
-        mainWindowController?.showWindow(nil)
+        controller.forcePresent()
         NSApp.activate(ignoringOtherApps: true)
-        stageLog("showMainWindow.ordered visible=\(window.isVisible) key=\(window.isKeyWindow) frame=\(NSStringFromRect(window.frame))")
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        stageLog("showMainWindow.ordered visible=\(window.isVisible) key=\(window.isKeyWindow) frame=\(NSStringFromRect(window.frame)) appWindows=\(NSApp.windows.count)")
+    }
+
+    @objc private func showMainWindowMenuAction(_ sender: Any?) {
+        showMainWindow()
     }
 
     private func bootstrapServicesInBackground() {
@@ -115,18 +128,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func verifyLaunchForSmokeTest() {
         stageLog("smoke.verify.begin")
+        mainWindowController?.forcePresent()
+        NSApp.activate(ignoringOtherApps: true)
+
         guard let window = mainWindowController?.window else {
-            finishSmokeTest(success: false, reason: "main window is nil")
+            finishSmokeTest(success: false, reason: "main window is nil after forcePresent")
             return
         }
-        // Force another order-front in case LaunchServices activated us late.
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
 
         let hasContent = window.contentViewController != nil
         let hasSize = window.frame.width > 100 && window.frame.height > 100
-        // On some CI hosts `isVisible` stays false even for a valid on-screen window.
-        // Accept: non-nil content + real frame + window is in NSApp.windows.
         let listed = NSApp.windows.contains(where: { $0 === window })
         let ok = hasContent && hasSize && listed
 
@@ -160,17 +171,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func stageLog(_ message: String) {
         let line = "[MaosDevOps] \(message)"
         NSLog("%@", line)
-        // Append stages so package.sh can annotate even when open(1) swallows stdout.
+        // Always persist startup stages — used for local diagnosis and CI smoke tests.
+        let path = "/tmp/maosdevops-startup.log"
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let entry = "\(stamp) \(message)\n"
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            if let data = entry.data(using: .utf8) { handle.write(data) }
+            handle.closeFile()
+        } else {
+            try? entry.write(toFile: path, atomically: true, encoding: .utf8)
+        }
         if isLaunchSmokeTest {
-            let path = Self.launchSmokeStatusPath + ".log"
-            let stamp = ISO8601DateFormatter().string(from: Date())
-            let entry = "\(stamp) \(message)\n"
-            if let handle = FileHandle(forWritingAtPath: path) {
+            let smokeLog = Self.launchSmokeStatusPath + ".log"
+            if let handle = FileHandle(forWritingAtPath: smokeLog) {
                 handle.seekToEndOfFile()
                 if let data = entry.data(using: .utf8) { handle.write(data) }
                 handle.closeFile()
             } else {
-                try? entry.write(toFile: path, atomically: true, encoding: .utf8)
+                try? entry.write(toFile: smokeLog, atomically: true, encoding: .utf8)
             }
         }
     }
@@ -256,6 +275,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(.separator())
+        let showMain = NSMenuItem(
+            title: "Show MaosDevOps Window",
+            action: #selector(showMainWindowMenuAction(_:)),
+            keyEquivalent: "0"
+        )
+        showMain.target = self
+        windowMenu.addItem(showMain)
         windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         NSApp.windowsMenu = windowMenu
     }

@@ -294,14 +294,12 @@ final class SSHSession {
 
         let temporaryPath = remotePath + ".maos-upload-" + UUID().uuidString.lowercased()
         let temporary = shellEscape(temporaryPath)
-        return [
-            "set -e",
-            "trap 'rm -f -- \(temporary)' EXIT HUP INT TERM",
+        let write = [
             "cat > \(temporary)",
             "if [ -e \(target) ]; then chmod --reference=\(target) \(temporary) 2>/dev/null || true; fi",
-            "mv -f -- \(temporary) \(target)",
-            "trap - EXIT"
+            "mv -f -- \(temporary) \(target)"
         ].joined(separator: "; ")
+        return "(set -e; \(write)) || { status=$?; rm -f -- \(temporary); exit $status; }"
     }
 
     func downloadCommand(remotePath: String) -> String {

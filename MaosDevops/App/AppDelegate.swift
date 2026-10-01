@@ -194,11 +194,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appMenuItem = NSMenuItem()
         menuBar.addItem(appMenuItem)
-        let appMenu = NSMenu(title: "MaosDevOps")
+        let appMenu = NSMenu(title: "Maos DevOps")
         appMenuItem.submenu = appMenu
 
         let aboutItem = NSMenuItem(
-            title: "About MaosDevOps",
+            title: "About Maos DevOps",
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: ""
         )
@@ -215,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(.separator())
 
         let hideItem = NSMenuItem(
-            title: "Hide MaosDevOps",
+            title: "Hide Maos DevOps",
             action: #selector(NSApplication.hide(_:)),
             keyEquivalent: "h"
         )
@@ -241,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit MaosDevOps",
+            title: "Quit Maos DevOps",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -268,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(.separator())
         let showMain = NSMenuItem(
-            title: "Show MaosDevOps Window",
+            title: "Show Maos DevOps Window",
             action: #selector(showMainWindowMenuAction(_:)),
             keyEquivalent: "0"
         )
@@ -315,7 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentAvailableUpdate(_ release: AppRelease) {
         let alert = NSAlert()
-        alert.messageText = "MaosDevOps \(release.version) is available"
+        alert.messageText = "Maos DevOps \(release.version) is available"
         alert.informativeText = "You are running \(currentVersion). Open the GitHub release to download the new DMG."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Open Release")
@@ -327,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentUpToDate(version: String) {
         let alert = NSAlert()
-        alert.messageText = "MaosDevOps is up to date"
+        alert.messageText = "Maos DevOps is up to date"
         alert.informativeText = "Version \(version) is the latest available release."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")

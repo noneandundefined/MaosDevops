@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="MaosDevops/Resources/Assets.xcassets/AppIcon.appiconset/appicon_256.png" width="144" alt="MaosDevOps icon">
+  <img src="MaosDevops/Resources/Assets.xcassets/AppIcon.appiconset/appicon_256.png" width="144" alt="Maos DevOps icon">
 </p>
 
-<h1 align="center">MaosDevOps</h1>
+<h1 align="center">Maos DevOps</h1>
 
 <p align="center">
   A lightweight native DevOps workspace for managing Linux servers from older Intel Macs.
@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/UI-native%20AppKit-5ac8fa" alt="Native AppKit">
 </p>
 
-MaosDevOps brings SSH, server monitoring, Docker, systemd, logs, file transfer,
+Maos DevOps brings SSH, server monitoring, Docker, systemd, logs, file transfer,
 deployments and health checks into one native macOS application. It is designed
 for machines that cannot run newer DevOps clients requiring macOS 12 or Apple
 Silicon.
@@ -63,7 +63,7 @@ provides those services.
 
 1. Open the [latest release](https://github.com/noneandundefined/MaosDevops/releases/latest).
 2. Download `MaosDevOps-macOS-10.15-Intel.dmg`.
-3. Open the DMG and drag **MaosDevOps** into **Applications**.
+3. Open the DMG and drag **Maos DevOps** into **Applications**.
 4. On first launch, right-click the app and choose **Open** if macOS shows a Gatekeeper warning.
 
 Public builds are ad-hoc signed. SHA-256 checksums are published with every
@@ -86,7 +86,7 @@ bash Scripts/build.sh
 Create the same ZIP and DMG artifacts used by GitHub Actions:
 
 ```bash
-APP_VERSION=0.2.2 BUILD_NUMBER=1 bash Scripts/package.sh
+APP_VERSION=0.2.3 BUILD_NUMBER=1 bash Scripts/package.sh
 ```
 
 The packaging script validates the final Mach-O architecture, minimum macOS

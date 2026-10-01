@@ -48,7 +48,7 @@ final class MainWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "MaosDevOps"
+        window.title = "Maos DevOps"
         window.minSize = NSSize(width: 800, height: 500)
         window.isReleasedWhenClosed = false
         window.isOpaque = true

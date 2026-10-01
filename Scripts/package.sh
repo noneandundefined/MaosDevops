@@ -6,7 +6,8 @@ DERIVED_DATA="$ROOT_DIR/.build/DerivedData"
 DIST_DIR="$ROOT_DIR/dist"
 APP_VERSION="${APP_VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
-APP_NAME="MaosDevOps.app"
+PRODUCT_APP_NAME="MaosDevOps.app"
+APP_NAME="Maos DevOps.app"
 APP_DIR="$DIST_DIR/$APP_NAME"
 EXECUTABLE="$APP_DIR/Contents/MacOS/MaosDevOps"
 
@@ -15,6 +16,30 @@ rm -rf "$DERIVED_DATA" "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
 plutil -lint MaosDevops/Resources/Info.plist MaosDevops/Resources/MaosDevops.entitlements
+
+# AppIcon.appiconset must contain every standard macOS slot at its exact pixel
+# size. The 1024px master includes an optical safe area for Dock/Finder sizing.
+while read -r icon expected; do
+  icon_path="MaosDevops/Resources/Assets.xcassets/AppIcon.appiconset/$icon"
+  test -f "$icon_path"
+  width="$(sips -g pixelWidth "$icon_path" | awk '/pixelWidth/ { print $2 }')"
+  height="$(sips -g pixelHeight "$icon_path" | awk '/pixelHeight/ { print $2 }')"
+  if [[ "$width" != "$expected" || "$height" != "$expected" ]]; then
+    echo "Invalid app icon size: $icon is ${width}x${height}, expected ${expected}x${expected}" >&2
+    exit 1
+  fi
+done <<'ICON_SIZES'
+appicon_16.png 16
+appicon_16@2x.png 32
+appicon_32.png 32
+appicon_32@2x.png 64
+appicon_128.png 128
+appicon_128@2x.png 256
+appicon_256.png 256
+appicon_256@2x.png 512
+appicon_512.png 512
+appicon_512@2x.png 1024
+ICON_SIZES
 
 xcodebuild \
   -project MaosDevops.xcodeproj \
@@ -28,7 +53,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   clean build
 
-BUILT_APP="$DERIVED_DATA/Build/Products/Release/$APP_NAME"
+BUILT_APP="$DERIVED_DATA/Build/Products/Release/$PRODUCT_APP_NAME"
 test -d "$BUILT_APP"
 ditto "$BUILT_APP" "$APP_DIR"
 
@@ -37,6 +62,8 @@ ditto "$BUILT_APP" "$APP_DIR"
 
 test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP_DIR/Contents/Info.plist")" = "10.15"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DIR/Contents/Info.plist")" = "$APP_VERSION"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_DIR/Contents/Info.plist")" = "Maos DevOps"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$APP_DIR/Contents/Info.plist")" = "Maos DevOps"
 test -x "$EXECUTABLE"
 test -f "$APP_DIR/Contents/Resources/AppIcon.icns"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP_DIR/Contents/Info.plist")" = "AppIcon"
@@ -72,7 +99,7 @@ codesign --force --deep --sign - "$APP_DIR"
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
-  echo "Launching MaosDevOps.app via LaunchServices to verify startup"
+  echo "Launching Maos DevOps.app via LaunchServices to verify startup"
   smoke_status_file="/tmp/maosdevops-launch-smoke.status"
   smoke_stage_log="/tmp/maosdevops-launch-smoke.status.log"
   smoke_request_file="/tmp/maosdevops-launch-smoke.request"
@@ -142,7 +169,7 @@ mkdir -p "$DMG_ROOT"
 ditto "$APP_DIR" "$DMG_ROOT/$APP_NAME"
 ln -s /Applications "$DMG_ROOT/Applications"
 hdiutil create \
-  -volname "MaosDevOps" \
+  -volname "Maos DevOps" \
   -srcfolder "$DMG_ROOT" \
   -ov \
   -format UDZO \
@@ -153,4 +180,4 @@ shasum -a 256 \
   MaosDevOps-macOS-10.15-Intel.zip \
   MaosDevOps-macOS-10.15-Intel.dmg > SHA256SUMS.txt
 
-echo "Packaged MaosDevOps $APP_VERSION ($BUILD_NUMBER) for macOS 10.15 x86_64"
+echo "Packaged Maos DevOps $APP_VERSION ($BUILD_NUMBER) for macOS 10.15 x86_64"

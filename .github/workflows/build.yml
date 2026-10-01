@@ -66,7 +66,7 @@ jobs:
           set -euo pipefail
           notes="$RUNNER_TEMP/release-notes.md"
           cat > "$notes" <<'RELEASE_NOTES'
-          MaosDevOps is a lightweight native AppKit client for managing Linux servers over SSH.
+          Maos DevOps is a lightweight native AppKit client for managing Linux servers over SSH.
 
           Requirements: macOS Catalina 10.15 or newer and an Intel (`x86_64`) Mac.
 
@@ -79,7 +79,7 @@ jobs:
               dist/MaosDevOps-macOS-10.15-Intel.dmg \
               dist/SHA256SUMS.txt --clobber
             gh release edit "$GITHUB_REF_NAME" \
-              --title "MaosDevOps $GITHUB_REF_NAME" \
+              --title "Maos DevOps $GITHUB_REF_NAME" \
               --notes-file "$notes" \
               --latest
           else
@@ -87,7 +87,7 @@ jobs:
               dist/MaosDevOps-macOS-10.15-Intel.zip \
               dist/MaosDevOps-macOS-10.15-Intel.dmg \
               dist/SHA256SUMS.txt \
-              --title "MaosDevOps $GITHUB_REF_NAME" \
+              --title "Maos DevOps $GITHUB_REF_NAME" \
               --notes-file "$notes" \
               --latest
           fi

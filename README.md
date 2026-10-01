@@ -86,7 +86,7 @@ bash Scripts/build.sh
 Create the same ZIP and DMG artifacts used by GitHub Actions:
 
 ```bash
-APP_VERSION=0.2.1 BUILD_NUMBER=1 bash Scripts/package.sh
+APP_VERSION=0.2.2 BUILD_NUMBER=1 bash Scripts/package.sh
 ```
 
 The packaging script validates the final Mach-O architecture, minimum macOS

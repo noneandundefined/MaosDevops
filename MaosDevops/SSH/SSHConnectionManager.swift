@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 enum SSHError: Error, LocalizedError {
     case notConnected
@@ -71,6 +72,7 @@ final class SSHSession {
     let server: Server
     private let keychain: KeychainService
     private let workQueue: DispatchQueue
+    private let runtimeDirectory: String
     private let controlPath: String
     private var masterProcess: Process?
     private(set) var isConnected = false
@@ -80,8 +82,15 @@ final class SSHSession {
         self.server = server
         self.keychain = keychain
         self.workQueue = DispatchQueue(label: "com.maosdevops.ssh.\(server.id.uuidString)", qos: .userInitiated)
-        let tmp = NSTemporaryDirectory()
-        self.controlPath = (tmp as NSString).appendingPathComponent("maosdevops-\(server.id.uuidString).sock")
+
+        // macOS limits Unix-domain socket paths to roughly 104 bytes and
+        // OpenSSH appends a temporary suffix while creating ControlPath.
+        // NSTemporaryDirectory() is already very long on Catalina, so keep
+        // every SSH runtime file in a short, private and session-unique path.
+        let token = UUID().uuidString.prefix(8).lowercased()
+        let directory = "/tmp/md-\(ProcessInfo.processInfo.processIdentifier)-\(token)"
+        self.runtimeDirectory = directory
+        self.controlPath = (directory as NSString).appendingPathComponent("cm.sock")
     }
 
     func connect(completion: @escaping (Result<Void, Error>) -> Void) {
@@ -274,6 +283,8 @@ final class SSHSession {
     }
 
     private func connectLocked() throws {
+        try ensureRuntimeDirectory()
+
         if isConnected, FileManager.default.fileExists(atPath: controlPath) {
             // Probe master
             let probe = Process()
@@ -291,6 +302,7 @@ final class SSHSession {
         }
 
         disconnectLocked()
+        try ensureRuntimeDirectory()
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
@@ -325,7 +337,7 @@ final class SSHSession {
         masterProcess = nil
         isConnected = false
         try? FileManager.default.removeItem(atPath: controlPath)
-        try? FileManager.default.removeItem(atPath: askpassPath)
+        try? FileManager.default.removeItem(atPath: runtimeDirectory)
     }
 
     private func executeLocked(
@@ -425,9 +437,12 @@ final class SSHSession {
         var env = ProcessInfo.processInfo.environment
         env["SSH_AUTH_SOCK"] = env["SSH_AUTH_SOCK"] ?? ""
         if server.authType == .password || (server.authType == .sshKey) {
-            // Install an askpass helper; the secret itself remains memory-only.
-            if let askpass = ensureAskpassHelper() {
-                env["SSH_ASKPASS"] = askpass
+            // The signed app executable has a tiny askpass mode in main.swift.
+            // No temporary executable is created, so reconnects cannot race
+            // with helper cleanup and Gatekeeper sees the already signed binary.
+            if let executable = Bundle.main.executablePath {
+                env["SSH_ASKPASS"] = executable
+                env["MAOSDEVOPS_ASKPASS"] = "1"
                 env["MAOSDEVOPS_SSH_SECRET"] = (try? keychain.readSecret(account: server.secretId)) ?? ""
                 // Catalina's OpenSSH predates SSH_ASKPASS_REQUIRE. DISPLAY plus
                 // the lack of a controlling terminal triggers SSH_ASKPASS.
@@ -439,22 +454,16 @@ final class SSHSession {
         process.environment = env
     }
 
-    private func ensureAskpassHelper() -> String? {
-        let path = askpassPath
-        // The helper contains no secret. The app reads Keychain and provides
-        // the value only in the short-lived local ssh process environment.
-        let script = "#!/bin/sh\nprintf '%s\\n' \"$MAOSDEVOPS_SSH_SECRET\"\n"
-        do {
-            try script.write(toFile: path, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: path)
-            return path
-        } catch {
-            return nil
-        }
-    }
-
-    private var askpassPath: String {
-        (NSTemporaryDirectory() as NSString).appendingPathComponent("maosdevops-askpass-\(server.id.uuidString).sh")
+    private func ensureRuntimeDirectory() throws {
+        try FileManager.default.createDirectory(
+            atPath: runtimeDirectory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o700],
+            ofItemAtPath: runtimeDirectory
+        )
     }
 
     private func shellEscape(_ value: String) -> String {

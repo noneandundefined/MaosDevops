@@ -41,6 +41,14 @@ test -x "$EXECUTABLE"
 test -f "$APP_DIR/Contents/Resources/AppIcon.icns"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP_DIR/Contents/Info.plist")" = "AppIcon"
 
+# Verify the built executable's SSH_ASKPASS mode without starting AppKit.
+# This catches regressions where password authentication would silently fail.
+ASKPASS_PROBE="$(MAOSDEVOPS_ASKPASS=1 MAOSDEVOPS_SSH_SECRET='maosdevops-askpass-ok' "$EXECUTABLE")"
+if [[ "$ASKPASS_PROBE" != "maosdevops-askpass-ok" ]]; then
+  echo "SSH_ASKPASS helper self-test failed" >&2
+  exit 1
+fi
+
 ARCHS_FOUND="$(lipo -archs "$EXECUTABLE")"
 if [[ "$ARCHS_FOUND" != "x86_64" ]]; then
   echo "Expected an Intel-only x86_64 executable, found: $ARCHS_FOUND" >&2

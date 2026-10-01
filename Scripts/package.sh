@@ -38,6 +38,8 @@ ditto "$BUILT_APP" "$APP_DIR"
 test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP_DIR/Contents/Info.plist")" = "10.15"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DIR/Contents/Info.plist")" = "$APP_VERSION"
 test -x "$EXECUTABLE"
+test -f "$APP_DIR/Contents/Resources/AppIcon.icns"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP_DIR/Contents/Info.plist")" = "AppIcon"
 
 ARCHS_FOUND="$(lipo -archs "$EXECUTABLE")"
 if [[ "$ARCHS_FOUND" != "x86_64" ]]; then

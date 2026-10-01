@@ -6,6 +6,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+	A10000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* Assets.xcassets */; };
 	BXMDE8J7NCIOT0P1QZVFGK34H /* ActionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */; };
 	BIG0X5ZYKC1H3F9P6J2QBATES /* ServerDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */; };
 	BX2D1PBU97E0Q84TKOZGYWR6N /* MonitoringViewControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */; };
@@ -39,6 +40,7 @@
 	A10000000000000000000006 /* MaosDevOps.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MaosDevOps.app; sourceTree = BUILT_PRODUCTS_DIR; };
 	A10000000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 	A10000000000000000000012 /* MaosDevops.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MaosDevops.entitlements; sourceTree = "<group>"; };
+	A10000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 	FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRunner.swift; sourceTree = "<group>"; };
 	FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailViewController.swift; sourceTree = "<group>"; };
 	F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringViewControllers.swift; sourceTree = "<group>"; };
@@ -98,6 +100,7 @@
 	A1000000000000000000000A /* Resources */ = {
 		isa = PBXGroup;
 		children = (
+			A10000000000000000000013 /* Assets.xcassets */,
 			A10000000000000000000011 /* Info.plist */,
 			A10000000000000000000012 /* MaosDevops.entitlements */,
 		);
@@ -328,6 +331,7 @@
 		isa = PBXResourcesBuildPhase;
 		buildActionMask = 2147483647;
 		files = (
+			A10000000000000000000014 /* Assets.xcassets in Resources */,
 		);
 		runOnlyForDeploymentPostprocessing = 0;
 	};
@@ -407,6 +411,7 @@
 		isa = XCBuildConfiguration;
 		buildSettings = {
 			ARCHS = x86_64;
+			ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 			CODE_SIGN_ENTITLEMENTS = MaosDevops/Resources/MaosDevops.entitlements;
 			CODE_SIGN_STYLE = Automatic;
 			COMBINE_HIDPI_IMAGES = YES;
@@ -426,6 +431,7 @@
 		isa = XCBuildConfiguration;
 		buildSettings = {
 			ARCHS = x86_64;
+			ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 			CODE_SIGN_ENTITLEMENTS = MaosDevops/Resources/MaosDevops.entitlements;
 			CODE_SIGN_STYLE = Automatic;
 			COMBINE_HIDPI_IMAGES = YES;

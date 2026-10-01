@@ -91,6 +91,8 @@ APP_VERSION=0.1.2 BUILD_NUMBER=1 bash Scripts/package.sh
 
 The packaging script validates the final Mach-O architecture, minimum macOS
 version, application bundle and ad-hoc signature before producing artifacts.
+CI also launches the built application and verifies that its main window is
+visible before accepting a release build.
 
 ## GitHub Actions releases
 

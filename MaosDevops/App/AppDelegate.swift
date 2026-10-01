@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindowController: MainWindowController?
     private let updateChecker = UpdateChecker()
     private var updateCheckInProgress = false
+    private let isLaunchSmokeTest = ProcessInfo.processInfo.arguments.contains("--launch-smoke-test")
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -16,6 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppServices.shared.bootstrap()
         showMainWindow()
+
+        if isLaunchSmokeTest {
+            verifyLaunchForSmokeTest()
+            return
+        }
 
         // Do not delay the first window with a network request.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -54,6 +60,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func verifyLaunchForSmokeTest() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let window = self?.mainWindowController?.window, window.isVisible else {
+                fatalError("Launch smoke test failed: the main window is not visible")
+            }
+            NSLog("[MaosDevOps] Launch smoke test passed: main window is visible")
+            NSApp.terminate(nil)
+        }
     }
 
     private func configureMainMenu() {

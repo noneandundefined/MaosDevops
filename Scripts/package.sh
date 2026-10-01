@@ -63,6 +63,11 @@ fi
 codesign --force --deep --sign - "$APP_DIR"
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
+if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
+  echo "Launching MaosDevOps to verify that its main window becomes visible"
+  "$EXECUTABLE" --launch-smoke-test
+fi
+
 ditto -c -k --sequesterRsrc --keepParent \
   "$APP_DIR" "$DIST_DIR/MaosDevOps-macOS-10.15-Intel.zip"
 

@@ -11,12 +11,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let isLaunchSmokeTest = ProcessInfo.processInfo.arguments.contains("--launch-smoke-test")
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        NSLog("[MaosDevOps] Application will finish launching")
         NSApp.setActivationPolicy(.regular)
         configureMainMenu()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSLog("[MaosDevOps] Application did finish launching")
         AppServices.shared.bootstrap()
+        NSLog("[MaosDevOps] Storage bootstrap completed")
         showMainWindow()
 
         if isLaunchSmokeTest {
@@ -60,7 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if window.isMiniaturized { window.deminiaturize(nil) }
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSLog("[MaosDevOps] Main window ordered to front; visible=\(window.isVisible)")
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func verifyLaunchForSmokeTest() {

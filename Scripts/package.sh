@@ -66,7 +66,7 @@ codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
   echo "Launching MaosDevOps to verify that its main window becomes visible"
   smoke_log="$ROOT_DIR/.build/launch-smoke-test.log"
-  "$EXECUTABLE" --launch-smoke-test >"$smoke_log" 2>&1 &
+  open -W -n "$APP_DIR" --args --launch-smoke-test >"$smoke_log" 2>&1 &
   smoke_pid=$!
   smoke_status=""
   for _ in {1..40}; do
@@ -82,13 +82,16 @@ if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
   if [[ -z "$smoke_status" ]]; then
     kill "$smoke_pid" 2>/dev/null || true
     wait "$smoke_pid" 2>/dev/null || true
+    pkill -x MaosDevOps 2>/dev/null || true
     cat "$smoke_log"
-    echo "Launch smoke test timed out after 20 seconds" >&2
+    while IFS= read -r line; do echo "error: launch smoke: $line"; done < "$smoke_log"
+    echo "error: Launch smoke test timed out after 20 seconds" >&2
     exit 1
   fi
   cat "$smoke_log"
   if [[ "$smoke_status" -ne 0 ]]; then
-    echo "Launch smoke test failed with exit code $smoke_status" >&2
+    while IFS= read -r line; do echo "error: launch smoke: $line"; done < "$smoke_log"
+    echo "error: Launch smoke test failed with exit code $smoke_status" >&2
     exit "$smoke_status"
   fi
 fi

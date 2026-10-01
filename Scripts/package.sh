@@ -64,36 +64,62 @@ codesign --force --deep --sign - "$APP_DIR"
 codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
-  echo "Launching MaosDevOps to verify that its main window becomes visible"
-  smoke_log="$ROOT_DIR/.build/launch-smoke-test.log"
-  open -W -n "$APP_DIR" --args --launch-smoke-test >"$smoke_log" 2>&1 &
-  smoke_pid=$!
-  smoke_status=""
-  for _ in {1..40}; do
-    if ! kill -0 "$smoke_pid" 2>/dev/null; then
-      set +e
-      wait "$smoke_pid"
-      smoke_status=$?
-      set -e
+  echo "Launching MaosDevOps.app via LaunchServices to verify startup"
+  smoke_status_file="/tmp/maosdevops-launch-smoke.status"
+  smoke_stage_log="/tmp/maosdevops-launch-smoke.status.log"
+  rm -f "$smoke_status_file" "$smoke_stage_log"
+
+  # Prefer the .app bundle path (same as a user double-click). Direct MacOS/binary
+  # launches can skip LaunchServices activation and hide AppKit lifecycle bugs.
+  open -n "$APP_DIR" --args --launch-smoke-test
+
+  smoke_ok=""
+  for attempt in {1..40}; do
+    if [[ -f "$smoke_status_file" ]]; then
+      if grep -q 'success=1' "$smoke_status_file"; then
+        smoke_ok=1
+      else
+        smoke_ok=0
+      fi
+      break
+    fi
+    # App may have exited before writing — treat as failure once process is gone
+    # and the marker is still missing after a few seconds.
+    if ! pgrep -x MaosDevOps >/dev/null 2>&1 && [[ $attempt -gt 6 ]]; then
+      smoke_ok=0
       break
     fi
     sleep 0.5
   done
-  if [[ -z "$smoke_status" ]]; then
-    kill "$smoke_pid" 2>/dev/null || true
-    wait "$smoke_pid" 2>/dev/null || true
-    pkill -x MaosDevOps 2>/dev/null || true
-    cat "$smoke_log"
-    while IFS= read -r line; do echo "error: launch smoke: $line"; done < "$smoke_log"
-    echo "error: Launch smoke test timed out after 20 seconds" >&2
+
+  echo "----- launch smoke stage log -----"
+  if [[ -f "$smoke_stage_log" ]]; then
+    cat "$smoke_stage_log"
+  else
+    echo "(no stage log written — app may not have reached AppDelegate)"
+  fi
+  echo "----- launch smoke status -----"
+  if [[ -f "$smoke_status_file" ]]; then
+    cat "$smoke_status_file"
+  else
+    echo "(missing status file)"
+  fi
+
+  pkill -x MaosDevOps 2>/dev/null || true
+  sleep 0.5
+
+  if [[ -z "$smoke_ok" ]]; then
+    echo "error: Launch smoke test timed out after 20 seconds (no status marker)" >&2
     exit 1
   fi
-  cat "$smoke_log"
-  if [[ "$smoke_status" -ne 0 ]]; then
-    while IFS= read -r line; do echo "error: launch smoke: $line"; done < "$smoke_log"
-    echo "error: Launch smoke test failed with exit code $smoke_status" >&2
-    exit "$smoke_status"
+  if [[ "$smoke_ok" != "1" ]]; then
+    while IFS= read -r line; do
+      echo "error: launch smoke: $line"
+    done < <(cat "$smoke_stage_log" 2>/dev/null; cat "$smoke_status_file" 2>/dev/null)
+    echo "error: Launch smoke test failed" >&2
+    exit 1
   fi
+  echo "Launch smoke test passed"
 fi
 
 ditto -c -k --sequesterRsrc --keepParent \

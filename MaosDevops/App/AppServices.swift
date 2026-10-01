@@ -1,5 +1,9 @@
 import Foundation
 
+extension Notification.Name {
+    static let appServicesDidBootstrap = Notification.Name("MaosDevOps.appServicesDidBootstrap")
+}
+
 /// Central composition root. Keeps services alive for app lifetime.
 final class AppServices {
     static let shared = AppServices()

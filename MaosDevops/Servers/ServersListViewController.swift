@@ -66,7 +66,17 @@ final class ServersListViewController: NSViewController, NSOutlineViewDataSource
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(reload),
+            name: .appServicesDidBootstrap,
+            object: nil
+        )
         reload()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewWillAppear() {

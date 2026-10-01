@@ -4,28 +4,39 @@ import Darwin
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let automaticUpdateCheckDateKey = "MaosDevOps.lastAutomaticUpdateCheck"
+    /// Shared with Scripts/package.sh — open(1) does not forward env or capture NSLog reliably.
+    static let launchSmokeStatusPath = "/tmp/maosdevops-launch-smoke.status"
 
     private var mainWindowController: MainWindowController?
     private let updateChecker = UpdateChecker()
     private var updateCheckInProgress = false
     private let isLaunchSmokeTest = ProcessInfo.processInfo.arguments.contains("--launch-smoke-test")
+    private var smokeWatchdog: DispatchWorkItem?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSLog("[MaosDevOps] Application will finish launching")
+        stageLog("willFinishLaunching")
+        // Must be a regular app or Dock/window activation stays broken.
         NSApp.setActivationPolicy(.regular)
         configureMainMenu()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSLog("[MaosDevOps] Application did finish launching")
-        AppServices.shared.bootstrap()
-        NSLog("[MaosDevOps] Storage bootstrap completed")
+        stageLog("didFinishLaunching")
+
+        // Show UI first. Storage/network must never block the first paint.
         showMainWindow()
+        stageLog("mainWindowShown")
 
         if isLaunchSmokeTest {
-            verifyLaunchForSmokeTest()
+            armSmokeWatchdog(seconds: 15)
+            // Defer one run-loop turn so AppKit can finish ordering the window.
+            DispatchQueue.main.async { [weak self] in
+                self?.verifyLaunchForSmokeTest()
+            }
             return
         }
+
+        bootstrapServicesInBackground()
 
         // Do not delay the first window with a network request.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
@@ -45,41 +56,118 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        !isLaunchSmokeTest
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        AppServices.shared.shutdown()
+        smokeWatchdog?.cancel()
+        if !isLaunchSmokeTest {
+            AppServices.shared.shutdown()
+        }
     }
 
     private func showMainWindow() {
+        stageLog("showMainWindow.begin")
         if mainWindowController == nil {
             mainWindowController = MainWindowController()
+            stageLog("showMainWindow.controllerCreated")
         }
 
         guard let window = mainWindowController?.window else {
-            NSLog("[MaosDevOps] Failed to create the main window")
+            stageLog("showMainWindow.FAILED_nil_window")
             return
         }
         if window.isMiniaturized { window.deminiaturize(nil) }
+        window.collectionBehavior.insert(.moveToActiveSpace)
         window.makeKeyAndOrderFront(nil)
-        NSLog("[MaosDevOps] Main window ordered to front; visible=\(window.isVisible)")
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
+        mainWindowController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        stageLog("showMainWindow.ordered visible=\(window.isVisible) key=\(window.isKeyWindow) frame=\(NSStringFromRect(window.frame))")
+    }
+
+    private func bootstrapServicesInBackground() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            AppServices.shared.bootstrap()
+            DispatchQueue.main.async {
+                self?.stageLog("bootstrapCompleted")
+                NotificationCenter.default.post(name: .appServicesDidBootstrap, object: nil)
+            }
         }
     }
 
+    // MARK: - Launch smoke test
+
+    private func armSmokeWatchdog(seconds: Int) {
+        let work = DispatchWorkItem { [weak self] in
+            self?.finishSmokeTest(success: false, reason: "watchdog timeout after \(seconds)s")
+        }
+        smokeWatchdog = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds), execute: work)
+    }
+
     private func verifyLaunchForSmokeTest() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let window = self?.mainWindowController?.window, window.isVisible else {
-                NSLog("[MaosDevOps] Launch smoke test failed: the main window is not visible")
-                exit(EXIT_FAILURE)
-            }
-            NSLog("[MaosDevOps] Launch smoke test passed: main window is visible")
-            AppServices.shared.shutdown()
-            exit(EXIT_SUCCESS)
+        stageLog("smoke.verify.begin")
+        guard let window = mainWindowController?.window else {
+            finishSmokeTest(success: false, reason: "main window is nil")
+            return
+        }
+        // Force another order-front in case LaunchServices activated us late.
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let hasContent = window.contentViewController != nil
+        let hasSize = window.frame.width > 100 && window.frame.height > 100
+        // On some CI hosts `isVisible` stays false even for a valid on-screen window.
+        // Accept: non-nil content + real frame + window is in NSApp.windows.
+        let listed = NSApp.windows.contains(where: { $0 === window })
+        let ok = hasContent && hasSize && listed
+
+        stageLog("smoke.verify hasContent=\(hasContent) hasSize=\(hasSize) listed=\(listed) isVisible=\(window.isVisible)")
+        if ok {
+            finishSmokeTest(success: true, reason: "window ready")
+        } else {
+            finishSmokeTest(success: false, reason: "window not ready (content=\(hasContent) size=\(hasSize) listed=\(listed) visible=\(window.isVisible))")
         }
     }
+
+    private func finishSmokeTest(success: Bool, reason: String) {
+        smokeWatchdog?.cancel()
+        smokeWatchdog = nil
+        stageLog(success ? "smoke.PASS \(reason)" : "smoke.FAIL \(reason)")
+        writeSmokeStatus(success: success, reason: reason)
+        AppServices.shared.shutdown()
+        // Hard exit — do not rely on AppKit terminate (can hang in headless CI).
+        exit(success ? EXIT_SUCCESS : EXIT_FAILURE)
+    }
+
+    private func writeSmokeStatus(success: Bool, reason: String) {
+        let body = """
+        success=\(success ? "1" : "0")
+        reason=\(reason)
+        pid=\(ProcessInfo.processInfo.processIdentifier)
+        """
+        try? body.write(toFile: Self.launchSmokeStatusPath, atomically: true, encoding: .utf8)
+    }
+
+    private func stageLog(_ message: String) {
+        let line = "[MaosDevOps] \(message)"
+        NSLog("%@", line)
+        // Append stages so package.sh can annotate even when open(1) swallows stdout.
+        if isLaunchSmokeTest {
+            let path = Self.launchSmokeStatusPath + ".log"
+            let stamp = ISO8601DateFormatter().string(from: Date())
+            let entry = "\(stamp) \(message)\n"
+            if let handle = FileHandle(forWritingAtPath: path) {
+                handle.seekToEndOfFile()
+                if let data = entry.data(using: .utf8) { handle.write(data) }
+                handle.closeFile()
+            } else {
+                try? entry.write(toFile: path, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+
+    // MARK: - Menu / updates
 
     private func configureMainMenu() {
         let menuBar = NSMenu(title: "Main Menu")

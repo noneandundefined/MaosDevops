@@ -41,9 +41,6 @@ final class MainWindowController: NSWindowController {
     private let splitViewController = NSSplitViewController()
     private let sidebarController = SidebarViewController()
     private let contentController = ContentContainerViewController()
-    /// Strong retain independent of AppKit window-controller quirks.
-    private let retainedWindow: NSWindow
-
     init() {
         let window = NSWindow(
             contentRect: NSRect(x: 100, y: 100, width: 1100, height: 700),
@@ -60,10 +57,7 @@ final class MainWindowController: NSWindowController {
         window.hidesOnDeactivate = false
         window.titlebarAppearsTransparent = false
         window.backgroundColor = NSColor.windowBackgroundColor
-        // Avoid frame autosave restoring an off-screen rect from a previous broken run.
-        window.setFrameAutosaveName("")
-
-        retainedWindow = window
+        window.center()
         super.init(window: window)
 
         sidebarController.delegate = self
@@ -89,7 +83,6 @@ final class MainWindowController: NSWindowController {
         // Embed default page after the hierarchy exists.
         contentController.embed(ServersListViewController())
 
-        positionOnMainScreen()
     }
 
     @available(*, unavailable)
@@ -98,30 +91,12 @@ final class MainWindowController: NSWindowController {
     }
 
     func forcePresent() {
-        positionOnMainScreen()
-        let window = retainedWindow
+        guard let window = window else { return }
         if window.isMiniaturized {
             window.deminiaturize(nil)
         }
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        window.level = .normal
-        window.alphaValue = 1.0
-        window.orderFrontRegardless()
-        window.makeKeyAndOrderFront(nil)
         showWindow(nil)
-    }
-
-    private func positionOnMainScreen() {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
-            retainedWindow.center()
-            return
-        }
-        let visible = screen.visibleFrame
-        let width = min(1100, max(800, visible.width - 80))
-        let height = min(700, max(500, visible.height - 80))
-        let x = visible.origin.x + (visible.width - width) / 2
-        let y = visible.origin.y + (visible.height - height) / 2
-        retainedWindow.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
+        window.makeKeyAndOrderFront(nil)
     }
 }
 

@@ -8,6 +8,7 @@
 /* Begin PBXBuildFile section */
 	A10000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* Assets.xcassets */; };
 	A10000000000000000000016 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* UpdateChecker.swift */; };
+	A10000000000000000000018 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* main.swift */; };
 	BXMDE8J7NCIOT0P1QZVFGK34H /* ActionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */; };
 	BIG0X5ZYKC1H3F9P6J2QBATES /* ServerDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */; };
 	BX2D1PBU97E0Q84TKOZGYWR6N /* MonitoringViewControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */; };
@@ -43,6 +44,7 @@
 	A10000000000000000000012 /* MaosDevops.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MaosDevops.entitlements; sourceTree = "<group>"; };
 	A10000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 	A10000000000000000000015 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
+	A10000000000000000000017 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 	FSR3817OTWPQXEUKFYCLBM09Z /* ActionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRunner.swift; sourceTree = "<group>"; };
 	FN92BSFWCQX3DTIK57EJLUY06 /* ServerDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDetailViewController.swift; sourceTree = "<group>"; };
 	F8H0G9VOJNKTUWIAQ41CFLYE2 /* MonitoringViewControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringViewControllers.swift; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 	GQIJNZMGCD8L2TU7PVF9HRKSX /* App */ = {
 		isa = PBXGroup;
 		children = (
+			A10000000000000000000017 /* main.swift */,
 			FSFBV1OQT4KJAG8L5CR69DPI3 /* AppDelegate.swift */,
 			FAEKIF5B8OL0YM43CJWPU2ZDV /* AppServices.swift */,
 			A10000000000000000000015 /* UpdateChecker.swift */,
@@ -345,6 +348,7 @@
 		isa = PBXSourcesBuildPhase;
 		buildActionMask = 2147483647;
 		files = (
+			A10000000000000000000018 /* main.swift in Sources */,
 			A10000000000000000000016 /* UpdateChecker.swift in Sources */,
 			BXMDE8J7NCIOT0P1QZVFGK34H /* ActionRunner.swift in Sources */,
 			B5UST7RVH4F2OCXGIWQ18ZKM6 /* ActionsListViewController.swift in Sources */,

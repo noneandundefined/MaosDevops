@@ -1,7 +1,6 @@
 import Cocoa
 import Darwin
 
-@main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let automaticUpdateCheckDateKey = "MaosDevOps.lastAutomaticUpdateCheck"
     /// Shared with Scripts/package.sh — open(1) does not forward env or capture NSLog reliably.
@@ -21,29 +20,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     private var smokeWatchdog: DispatchWorkItem?
 
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        stageLog("willFinishLaunching")
-        // Must be a regular app or Dock/window activation stays broken.
-        let policyOK = NSApp.setActivationPolicy(.regular)
-        stageLog("activationPolicy.regular ok=\(policyOK)")
-        configureMainMenu()
-        // Create the window early so didFinishLaunching only has to order it front.
-        ensureMainWindowController()
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
-        stageLog("didFinishLaunching windows=\(NSApp.windows.count)")
+        stageLog("didFinishLaunching")
+        NSApp.appearance = nil
+        configureMainMenu()
 
+        // Follow the same startup order as MaosVPN: build and retain the controller,
+        // attach its content, then show the window and activate the application.
+        ensureMainWindowController()
         showMainWindow()
-        stageLog("mainWindowShown")
-
-        // Re-assert after the run loop settles — LaunchServices sometimes steals focus.
-        DispatchQueue.main.async { [weak self] in
-            self?.showMainWindow()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            self?.showMainWindow()
-        }
 
         if isLaunchSmokeTest {
             armSmokeWatchdog(seconds: 15)
@@ -61,8 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        stageLog("didBecomeActive windows=\(NSApp.windows.count) visible=\(NSApp.windows.filter(\.isVisible).count)")
-        showMainWindow()
+        if NSApp.windows.allSatisfy({ !$0.isVisible }) {
+            showMainWindow()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -72,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        !isLaunchSmokeTest
+        false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -96,9 +82,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stageLog("showMainWindow.FAILED_nil_window")
             return
         }
-        controller.forcePresent()
+        // Loading the view before ordering the window avoids an empty first frame
+        // on Catalina and makes construction failures visible during startup.
+        _ = window.contentViewController?.view
+        controller.showWindow(nil)
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
         stageLog("showMainWindow.ordered visible=\(window.isVisible) key=\(window.isKeyWindow) frame=\(NSStringFromRect(window.frame)) appWindows=\(NSApp.windows.count)")
     }
 

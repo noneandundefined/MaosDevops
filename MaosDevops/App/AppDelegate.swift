@@ -6,11 +6,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let automaticUpdateCheckDateKey = "MaosDevOps.lastAutomaticUpdateCheck"
     /// Shared with Scripts/package.sh — open(1) does not forward env or capture NSLog reliably.
     static let launchSmokeStatusPath = "/tmp/maosdevops-launch-smoke.status"
+    static let launchSmokeRequestPath = "/tmp/maosdevops-launch-smoke.request"
 
     private var mainWindowController: MainWindowController?
     private let updateChecker = UpdateChecker()
     private var updateCheckInProgress = false
-    private let isLaunchSmokeTest = ProcessInfo.processInfo.arguments.contains("--launch-smoke-test")
+    private lazy var isLaunchSmokeTest: Bool = {
+        let requestedByArgument = ProcessInfo.processInfo.arguments.contains("--launch-smoke-test")
+        let requestedByFile = FileManager.default.fileExists(atPath: Self.launchSmokeRequestPath)
+        if requestedByFile {
+            try? FileManager.default.removeItem(atPath: Self.launchSmokeRequestPath)
+        }
+        return requestedByArgument || requestedByFile
+    }()
     private var smokeWatchdog: DispatchWorkItem?
 
     func applicationWillFinishLaunching(_ notification: Notification) {

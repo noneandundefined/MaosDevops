@@ -67,7 +67,9 @@ if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
   echo "Launching MaosDevOps.app via LaunchServices to verify startup"
   smoke_status_file="/tmp/maosdevops-launch-smoke.status"
   smoke_stage_log="/tmp/maosdevops-launch-smoke.status.log"
-  rm -f "$smoke_status_file" "$smoke_stage_log"
+  smoke_request_file="/tmp/maosdevops-launch-smoke.request"
+  rm -f "$smoke_status_file" "$smoke_stage_log" "$smoke_request_file"
+  touch "$smoke_request_file"
 
   # Prefer the .app bundle path (same as a user double-click). Direct MacOS/binary
   # launches can skip LaunchServices activation and hide AppKit lifecycle bugs.
@@ -106,6 +108,7 @@ if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
   fi
 
   pkill -x MaosDevOps 2>/dev/null || true
+  rm -f "$smoke_request_file"
   sleep 0.5
 
   if [[ -z "$smoke_ok" ]]; then

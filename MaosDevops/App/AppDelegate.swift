@@ -1,4 +1,5 @@
 import Cocoa
+import Darwin
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -65,10 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func verifyLaunchForSmokeTest() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             guard let window = self?.mainWindowController?.window, window.isVisible else {
-                fatalError("Launch smoke test failed: the main window is not visible")
+                NSLog("[MaosDevOps] Launch smoke test failed: the main window is not visible")
+                exit(EXIT_FAILURE)
             }
             NSLog("[MaosDevOps] Launch smoke test passed: main window is visible")
-            NSApp.terminate(nil)
+            AppServices.shared.shutdown()
+            exit(EXIT_SUCCESS)
         }
     }
 

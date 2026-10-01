@@ -65,7 +65,32 @@ codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 if [[ "${RUN_LAUNCH_SMOKE_TEST:-0}" == "1" ]]; then
   echo "Launching MaosDevOps to verify that its main window becomes visible"
-  "$EXECUTABLE" --launch-smoke-test
+  smoke_log="$ROOT_DIR/.build/launch-smoke-test.log"
+  "$EXECUTABLE" --launch-smoke-test >"$smoke_log" 2>&1 &
+  smoke_pid=$!
+  smoke_status=""
+  for _ in {1..40}; do
+    if ! kill -0 "$smoke_pid" 2>/dev/null; then
+      set +e
+      wait "$smoke_pid"
+      smoke_status=$?
+      set -e
+      break
+    fi
+    sleep 0.5
+  done
+  if [[ -z "$smoke_status" ]]; then
+    kill "$smoke_pid" 2>/dev/null || true
+    wait "$smoke_pid" 2>/dev/null || true
+    cat "$smoke_log"
+    echo "Launch smoke test timed out after 20 seconds" >&2
+    exit 1
+  fi
+  cat "$smoke_log"
+  if [[ "$smoke_status" -ne 0 ]]; then
+    echo "Launch smoke test failed with exit code $smoke_status" >&2
+    exit "$smoke_status"
+  fi
 fi
 
 ditto -c -k --sequesterRsrc --keepParent \

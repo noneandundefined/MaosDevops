@@ -163,6 +163,19 @@ fi
 ditto -c -k --sequesterRsrc --keepParent \
   "$APP_DIR" "$DIST_DIR/MaosDevOps-macOS-10.15-Intel.zip"
 
+# Exercise the exact ZIP layout and identity expected by the in-app updater.
+UPDATE_PROBE="$ROOT_DIR/.build/update-probe"
+rm -rf "$UPDATE_PROBE"
+mkdir -p "$UPDATE_PROBE"
+ditto -x -k "$DIST_DIR/MaosDevOps-macOS-10.15-Intel.zip" "$UPDATE_PROBE"
+UPDATE_CANDIDATE="$UPDATE_PROBE/Maos DevOps.app"
+test -d "$UPDATE_CANDIDATE"
+test -x "$UPDATE_CANDIDATE/Contents/MacOS/MaosDevOps"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$UPDATE_CANDIDATE/Contents/Info.plist")" = "com.maosdevops.app"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$UPDATE_CANDIDATE/Contents/Info.plist")" = "$APP_VERSION"
+codesign --verify --deep --strict --verbose=2 "$UPDATE_CANDIDATE"
+rm -rf "$UPDATE_PROBE"
+
 DMG_ROOT="$ROOT_DIR/.build/dmg-root"
 rm -rf "$DMG_ROOT"
 mkdir -p "$DMG_ROOT"

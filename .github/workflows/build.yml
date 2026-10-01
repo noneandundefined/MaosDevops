@@ -68,6 +68,8 @@ jobs:
           cat > "$notes" <<'RELEASE_NOTES'
           Maos DevOps is a lightweight native AppKit client for managing Linux servers over SSH.
 
+          Updates can be downloaded, verified and installed directly from the app through **Check for Updates…**.
+
           Requirements: macOS Catalina 10.15 or newer and an Intel (`x86_64`) Mac.
 
           The public build is ad-hoc signed. On first launch, right-click the app and choose **Open** if macOS asks for confirmation.

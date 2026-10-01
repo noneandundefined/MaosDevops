@@ -2,14 +2,13 @@ import Cocoa
 import Darwin
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private static let automaticUpdateCheckDateKey = "MaosDevOps.lastAutomaticUpdateCheck"
     /// Shared with Scripts/package.sh — open(1) does not forward env or capture NSLog reliably.
     static let launchSmokeStatusPath = "/tmp/maosdevops-launch-smoke.status"
     static let launchSmokeRequestPath = "/tmp/maosdevops-launch-smoke.request"
 
     private var mainWindowController: MainWindowController?
-    private let updateChecker = UpdateChecker()
-    private var updateCheckInProgress = false
+    private var updateController: UpdateController?
+    private var updateTimer: Timer?
     private lazy var isLaunchSmokeTest: Bool = {
         let requestedByArgument = ProcessInfo.processInfo.arguments.contains("--launch-smoke-test")
         let requestedByFile = FileManager.default.fileExists(atPath: Self.launchSmokeRequestPath)
@@ -29,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // attach its content, then show the window and activate the application.
         ensureMainWindowController()
         showMainWindow()
+        if let window = mainWindowController?.window {
+            updateController = UpdateController(presentingWindow: window)
+        }
 
         if isLaunchSmokeTest {
             armSmokeWatchdog(seconds: 15)
@@ -40,8 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         bootstrapServicesInBackground()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            self?.checkForUpdatesAutomaticallyIfNeeded()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.updateController?.checkAutomatically()
+        }
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+            self?.updateController?.checkAutomatically()
         }
     }
 
@@ -63,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         smokeWatchdog?.cancel()
+        updateTimer?.invalidate()
         if !isLaunchSmokeTest {
             AppServices.shared.shutdown()
         }
@@ -279,71 +285,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func checkForUpdates(_ sender: Any?) {
-        performUpdateCheck(userInitiated: true)
-    }
-
-    private func checkForUpdatesAutomaticallyIfNeeded() {
-        let defaults = UserDefaults.standard
-        if let lastCheck = defaults.object(forKey: Self.automaticUpdateCheckDateKey) as? Date,
-           Date().timeIntervalSince(lastCheck) < 24 * 60 * 60 {
-            return
-        }
-        performUpdateCheck(userInitiated: false)
-    }
-
-    private func performUpdateCheck(userInitiated: Bool) {
-        guard !updateCheckInProgress else { return }
-        updateCheckInProgress = true
-
-        updateChecker.check { [weak self] result in
-            guard let self = self else { return }
-            self.updateCheckInProgress = false
-
-            switch result {
-            case .success(.updateAvailable(let release)):
-                UserDefaults.standard.set(Date(), forKey: Self.automaticUpdateCheckDateKey)
-                self.presentAvailableUpdate(release)
-            case .success(.upToDate(let version)):
-                UserDefaults.standard.set(Date(), forKey: Self.automaticUpdateCheckDateKey)
-                if userInitiated { self.presentUpToDate(version: version) }
-            case .failure(let error):
-                NSLog("[MaosDevOps] Update check failed: \(error.localizedDescription)")
-                if userInitiated { self.presentUpdateError(error) }
-            }
-        }
-    }
-
-    private func presentAvailableUpdate(_ release: AppRelease) {
-        let alert = NSAlert()
-        alert.messageText = "Maos DevOps \(release.version) is available"
-        alert.informativeText = "You are running \(currentVersion). Open the GitHub release to download the new DMG."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Open Release")
-        alert.addButton(withTitle: "Later")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(release.pageURL)
-        }
-    }
-
-    private func presentUpToDate(version: String) {
-        let alert = NSAlert()
-        alert.messageText = "Maos DevOps is up to date"
-        alert.informativeText = "Version \(version) is the latest available release."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    private func presentUpdateError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Unable to check for updates"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    private var currentVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        updateController?.checkForUpdates(silent: false)
     }
 }

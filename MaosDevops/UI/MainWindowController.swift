@@ -6,6 +6,7 @@ enum SidebarItem: String, CaseIterable {
     case projects
     case actions
     case monitoring
+    case notifications
 
     var title: String {
         switch self {
@@ -14,6 +15,7 @@ enum SidebarItem: String, CaseIterable {
         case .projects: return L10n.text("Projects")
         case .actions: return L10n.text("Actions")
         case .monitoring: return L10n.text("Monitoring")
+        case .notifications: return L10n.text("Notifications")
         }
     }
 }
@@ -113,6 +115,8 @@ extension MainWindowController: SidebarViewControllerDelegate {
             contentController.embed(ActionsListViewController())
         case .monitoring:
             contentController.embed(GlobalMonitoringViewController())
+        case .notifications:
+            contentController.embed(NotificationsViewController())
         }
     }
 }

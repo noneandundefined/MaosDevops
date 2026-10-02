@@ -1,5 +1,4 @@
 import Cocoa
-import Network
 
 struct HealthCheck: Identifiable, Codable, Equatable {
     enum Kind: String, Codable { case http, tcp, shell }
@@ -47,35 +46,35 @@ final class HealthCheckRunner {
 
         switch check.kind {
         case .http:
-            guard let url = URL(string: check.target), let scheme = url.scheme,
+            let normalizedTarget = check.target.contains("://") ? check.target : "http://\(check.target)"
+            guard let url = URL(string: normalizedTarget), let scheme = url.scheme,
                   scheme == "http" || scheme == "https" else {
                 finish(false, "Invalid HTTP URL")
                 return
             }
-            if let server = server {
-                let target = Self.shellQuote(check.target)
-                let command = """
-                command -v curl >/dev/null 2>&1 || exit 127
-                curl -k -L -sS --connect-timeout 8 --max-time 12 -o /dev/null -w 'HTTP %{http_code}' -- \(target)
-                """
-                sshManager.execute(on: server, command: command) { [weak self] result in
-                    switch result {
-                    case .success(let value) where value.exitCode == 0:
-                        let summary = value.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let code = Int(summary.split(separator: " ").last ?? "") ?? 0
-                        finish((100...599).contains(code), summary.isEmpty ? "HTTP check completed" : summary)
-                    case .success(let value) where value.exitCode == 127:
-                        self?.runLocalHTTP(url, finish: finish)
-                    case .success(let value):
-                        let message = (value.stderr.isEmpty ? value.stdout : value.stderr)
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        finish(false, message.isEmpty ? "HTTP check failed (exit \(value.exitCode))" : message)
-                    case .failure(let error):
-                        finish(false, error.localizedDescription)
-                    }
+            guard let server = server else {
+                finish(false, "Server is required")
+                return
+            }
+
+            let target = Self.shellQuote(normalizedTarget)
+            let command = """
+            command -v curl >/dev/null 2>&1 || { echo 'curl is not installed on the server' >&2; exit 127; }
+            curl -k -L -sS --connect-timeout 8 --max-time 12 -o /dev/null -w 'HTTP %{http_code}' -- \(target)
+            """
+            sshManager.execute(on: server, command: command) { result in
+                switch result {
+                case .success(let value) where value.exitCode == 0:
+                    let summary = value.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let code = Int(summary.split(separator: " ").last ?? "") ?? 0
+                    finish((100...599).contains(code), summary.isEmpty ? "HTTP check completed" : summary)
+                case .success(let value):
+                    let message = (value.stderr.isEmpty ? value.stdout : value.stderr)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    finish(false, message.isEmpty ? "HTTP check failed (exit \(value.exitCode))" : message)
+                case .failure(let error):
+                    finish(false, error.localizedDescription)
                 }
-            } else {
-                runLocalHTTP(url, finish: finish)
             }
 
         case .tcp:
@@ -83,29 +82,43 @@ final class HealthCheckRunner {
                 finish(false, "Use host:port")
                 return
             }
-            guard let port = NWEndpoint.Port(rawValue: endpoint.port) else {
-                finish(false, "Port must be between 1 and 65535")
+            guard let server = server else {
+                finish(false, "Server is required")
                 return
             }
-            let gate = HealthCompletionGate(finish)
-            let queue = DispatchQueue(label: "com.maosdevops.health.tcp", qos: .utility)
-            let connection = NWConnection(host: NWEndpoint.Host(endpoint.host), port: port, using: .tcp)
-            connection.stateUpdateHandler = { (state: NWConnection.State) in
-                switch state {
-                case .ready:
-                    gate.complete(true, "Connected")
-                    connection.cancel()
-                case .failed(let error):
-                    gate.complete(false, error.localizedDescription)
-                    connection.cancel()
-                default:
-                    break
+
+            let host = Self.shellQuote(endpoint.host)
+            let port = Self.shellQuote(String(endpoint.port))
+            let command = """
+            HOST=\(host)
+            PORT=\(port)
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "$HOST" "$PORT" <<'PY'
+            import socket
+            import sys
+            connection = socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=8)
+            connection.close()
+            PY
+            elif command -v nc >/dev/null 2>&1; then
+                nc -z -w 8 "$HOST" "$PORT"
+            elif command -v bash >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
+                timeout 8 bash -c 'exec 3<>/dev/tcp/"$1"/"$2"' _ "$HOST" "$PORT"
+            else
+                echo 'No TCP probe tool available on the server (python3, nc, or bash+timeout)' >&2
+                exit 127
+            fi
+            """
+            sshManager.execute(on: server, command: command) { result in
+                switch result {
+                case .success(let value) where value.exitCode == 0:
+                    finish(true, "Connected")
+                case .success(let value):
+                    let message = (value.stderr.isEmpty ? value.stdout : value.stderr)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    finish(false, message.isEmpty ? "TCP connection failed" : String(message.prefix(160)))
+                case .failure(let error):
+                    finish(false, error.localizedDescription)
                 }
-            }
-            connection.start(queue: queue)
-            queue.asyncAfter(deadline: .now() + 8) {
-                gate.complete(false, "TCP timeout")
-                connection.cancel()
             }
 
         case .shell:
@@ -125,27 +138,6 @@ final class HealthCheckRunner {
         }
     }
 
-    private func runLocalHTTP(_ url: URL, finish: @escaping (Bool, String) -> Void) {
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 12
-        let session = URLSession(configuration: config)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        session.dataTask(with: request) { _, response, error in
-            defer { session.finishTasksAndInvalidate() }
-            if let error = error {
-                finish(false, error.localizedDescription)
-                return
-            }
-            guard let http = response as? HTTPURLResponse else {
-                finish(false, "No HTTP response")
-                return
-            }
-            finish((100...599).contains(http.statusCode), "HTTP \(http.statusCode) — server responded")
-        }.resume()
-    }
-
     private static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
@@ -160,22 +152,6 @@ final class HealthCheckRunner {
         }
         guard let colon = trimmed.lastIndex(of: ":"), let port = UInt16(trimmed[trimmed.index(after: colon)...]) else { return nil }
         return (String(trimmed[..<colon]), port)
-    }
-}
-
-private final class HealthCompletionGate {
-    private let lock = NSLock()
-    private var completed = false
-    private let handler: (Bool, String) -> Void
-
-    init(_ handler: @escaping (Bool, String) -> Void) { self.handler = handler }
-
-    func complete(_ healthy: Bool, _ summary: String) {
-        lock.lock()
-        guard !completed else { lock.unlock(); return }
-        completed = true
-        lock.unlock()
-        handler(healthy, summary)
     }
 }
 

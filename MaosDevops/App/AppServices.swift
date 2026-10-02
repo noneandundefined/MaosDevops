@@ -14,6 +14,7 @@ final class AppServices {
     let actions: ActionRunner
     let monitoring: MonitoringService
     let healthChecks: HealthCheckRunner
+    let notifications: NotificationService
 
     private init() {
         storage = StorageService()
@@ -22,18 +23,26 @@ final class AppServices {
         actions = ActionRunner(sshManager: sshManager, storage: storage)
         monitoring = MonitoringService(sshManager: sshManager, storage: storage)
         healthChecks = HealthCheckRunner(sshManager: sshManager)
+        notifications = NotificationService(
+            storage: storage,
+            sshManager: sshManager,
+            monitoring: monitoring,
+            healthChecks: healthChecks
+        )
     }
 
     func bootstrap() {
         do {
             try storage.open()
             try storage.migrateIfNeeded()
+            notifications.start()
         } catch {
             NSLog("[MaosDevOps] Storage bootstrap failed: \(error)")
         }
     }
 
     func shutdown() {
+        notifications.stop()
         monitoring.stopAll()
         actions.stopAll()
         sshManager.disconnectAll()

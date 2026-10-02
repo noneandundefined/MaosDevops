@@ -91,7 +91,6 @@ enum L10n {
         "Notification text": "Текст уведомления",
         "Cooldown, sec": "Пауза между уведомлениями, сек",
         "Notify when recovered": "Уведомлять о восстановлении",
-        "Test notification": "Тестовое уведомление",
         "Server is not reachable": "Сервер недоступен",
         "Server is reachable again": "Сервер снова доступен",
         "available again": "снова доступно",

@@ -36,6 +36,7 @@
 	BBSJZ8CYRD7W2MIA3K50OQPNE /* SSHConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AL5FJO2ZXIDWP9NSUY6KBV4 /* SSHConnectionManager.swift */; };
 	BCTOW6ZU4AKRP5JL1BY90DN3F /* FilesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAL93D5QR0PU8XSOKWFVECHGT /* FilesViewController.swift */; };
 	B1UYXMLCK03J5GSBE4PIW2O79 /* TerminalViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FSOVFAT8C36PZYWGXHQR9DN2L /* TerminalViewController.swift */; };
+	B0A1B2C3D4E5F60718293A4B /* NotificationsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F60718293A4B /* NotificationsViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +73,7 @@
 	F8AL5FJO2ZXIDWP9NSUY6KBV4 /* SSHConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHConnectionManager.swift; sourceTree = "<group>"; };
 	FAL93D5QR0PU8XSOKWFVECHGT /* FilesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesViewController.swift; sourceTree = "<group>"; };
 	FSOVFAT8C36PZYWGXHQR9DN2L /* TerminalViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalViewController.swift; sourceTree = "<group>"; };
+	F0A1B2C3D4E5F60718293A4B /* NotificationsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -247,6 +249,7 @@
 		children = (
 			FULZCXENWY5QR03MDGF9KPJ4I /* MainWindowController.swift */,
 			FQDPXH64GVM8AFI1RWZ9N3LEO /* SidebarViewController.swift */,
+			F0A1B2C3D4E5F60718293A4B /* NotificationsViewController.swift */,
 		);
 		path = UI;
 		sourceTree = "<group>";
@@ -376,6 +379,7 @@
 			B1UYXMLCK03J5GSBE4PIW2O79 /* TerminalViewController.swift in Sources */,
 			BHZWL3P8TBRYIMAXFN7K1EGC4 /* MainWindowController.swift in Sources */,
 			BET74ZNA30S8XWCUHGO59F1P6 /* SidebarViewController.swift in Sources */,
+			B0A1B2C3D4E5F60718293A4B /* NotificationsViewController.swift in Sources */,
 			BK7JIBR6EXG3HTUV4SNPMWZ5C /* Formatters.swift in Sources */,
 		);
 		runOnlyForDeploymentPostprocessing = 0;

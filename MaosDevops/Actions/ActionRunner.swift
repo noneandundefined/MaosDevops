@@ -26,16 +26,51 @@ final class ActionRunner {
         onOutput: ((String) -> Void)? = nil,
         completion: @escaping (Result<SSHCommandResult, Error>) -> Void
     ) {
+        let trackedCompletion: (Result<SSHCommandResult, Error>) -> Void = { result in
+            self.postCompletion(action: action, server: server, result: result)
+            completion(result)
+        }
+
         switch action.type {
         case .command:
-            runOnce(action, server: server, completion: completion)
+            runOnce(action, server: server, completion: trackedCompletion)
         case .poll, .check:
-            startPoll(action, server: server, onOutput: onOutput, completion: completion)
+            startPoll(action, server: server, onOutput: onOutput, completion: trackedCompletion)
         case .stream:
-            startStream(action, server: server, onOutput: onOutput, completion: completion)
+            startStream(action, server: server, onOutput: onOutput, completion: trackedCompletion)
         case .group:
-            runGroup(action, server: server, onOutput: onOutput, completion: completion)
+            runGroup(action, server: server, onOutput: onOutput, completion: trackedCompletion)
         }
+    }
+
+    private func postCompletion(
+        action: CustomAction,
+        server: Server,
+        result: Result<SSHCommandResult, Error>
+    ) {
+        let success: Bool
+        let summary: String
+        switch result {
+        case .success(let value):
+            success = value.exitCode == 0
+            let output = (value.stderr.isEmpty ? value.stdout : value.stderr)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            summary = output.isEmpty ? "Exit \(value.exitCode)" : String(output.prefix(180))
+        case .failure(let error):
+            success = false
+            summary = error.localizedDescription
+        }
+
+        NotificationCenter.default.post(
+            name: .maosActionDidFinish,
+            object: nil,
+            userInfo: [
+                "actionId": action.id.uuidString,
+                "serverId": server.id.uuidString,
+                "success": success,
+                "summary": summary
+            ]
+        )
     }
 
     func stop(actionId: UUID) {

@@ -76,6 +76,10 @@ if [[ "$ASKPASS_PROBE" != "maosdevops-askpass-ok" ]]; then
   exit 1
 fi
 
+# The Files tab uses SFTP's working directory for '~'. A quoted tilde is a
+# literal directory name in SFTP and used to produce paths such as /root/~.
+"$EXECUTABLE" --files-path-self-test
+
 ARCHS_FOUND="$(lipo -archs "$EXECUTABLE")"
 if [[ "$ARCHS_FOUND" != "x86_64" ]]; then
   echo "Expected an Intel-only x86_64 executable, found: $ARCHS_FOUND" >&2

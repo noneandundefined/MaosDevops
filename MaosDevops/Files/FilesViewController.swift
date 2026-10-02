@@ -1,5 +1,43 @@
 import Cocoa
 
+enum RemotePath {
+    static func displayPath(_ rawPath: String) -> String {
+        let path = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return path.isEmpty ? "~" : path
+    }
+
+    // Each SFTP process starts in the remote user's home directory. OpenSSH
+    // does not expand a quoted tilde, so send home-relative paths as ./...
+    // instead of letting "~" become a literal /home/user/~ directory.
+    static func sftpPath(_ rawPath: String) -> String {
+        let path = displayPath(rawPath)
+        if path == "~" { return "." }
+        if path.hasPrefix("~/") { return "." + String(path.dropFirst()) }
+        return path
+    }
+
+    static func appending(_ component: String, to rawBase: String) -> String {
+        let base = displayPath(rawBase)
+        if base == "~" { return "~/" + component }
+        if base == "/" { return "/" + component }
+        return (base as NSString).appendingPathComponent(component)
+    }
+
+    static func parent(of rawPath: String) -> String {
+        let path = displayPath(rawPath)
+        if path == "~" || path == "/" { return path }
+
+        if path.hasPrefix("~/") {
+            let suffix = String(path.dropFirst(2))
+            guard suffix.contains("/") else { return "~" }
+            return "~/" + (suffix as NSString).deletingLastPathComponent
+        }
+
+        let parent = (path as NSString).deletingLastPathComponent
+        return parent.isEmpty ? "/" : parent
+    }
+}
+
 final class FilesViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     private let server: Server
     private let pathField = NSTextField(string: "~")
@@ -68,7 +106,9 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
     }
 
     @objc private func openPath() {
-        let path = pathField.stringValue
+        let displayPath = RemotePath.displayPath(pathField.stringValue)
+        pathField.stringValue = displayPath
+        let path = RemotePath.sftpPath(displayPath)
         runSFTP(command: "ls -la \(sftpQuote(path))") { [weak self] result in
             guard let self = self else { return }
             switch result {
@@ -85,11 +125,9 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
                     return RemoteFileEntry(name: name, isDirectory: isDir, listing: s)
                 }
                 self.table.reloadData()
-            case .failure(let e):
-                let alert = NSAlert()
-                alert.messageText = "Files"
-                alert.informativeText = e.localizedDescription
-                alert.runModal()
+            case .failure:
+                self.entries = []
+                self.table.reloadData()
             }
         }
     }
@@ -97,16 +135,14 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
     @objc private func goUp() {
         let path = pathField.stringValue
         if path == "~" || path == "/" { return }
-        pathField.stringValue = (path as NSString).deletingLastPathComponent
-        if pathField.stringValue.isEmpty { pathField.stringValue = "/" }
+        pathField.stringValue = RemotePath.parent(of: path)
         openPath()
     }
 
     @objc private func doubleClick() {
         guard let e = selected() else { return }
         if e.isDirectory {
-            let base = pathField.stringValue
-            pathField.stringValue = (base as NSString).appendingPathComponent(e.name)
+            pathField.stringValue = RemotePath.appending(e.name, to: pathField.stringValue)
             openPath()
         } else {
             editFile()
@@ -128,7 +164,7 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         alert.addButton(withTitle: "Create")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let full = (pathField.stringValue as NSString).appendingPathComponent(field.stringValue)
+        let full = RemotePath.sftpPath(RemotePath.appending(field.stringValue, to: pathField.stringValue))
         runSFTP(command: "mkdir \(sftpQuote(full))") { [weak self] _ in self?.openPath() }
     }
 
@@ -140,7 +176,7 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let full = (pathField.stringValue as NSString).appendingPathComponent(e.name)
+        let full = RemotePath.sftpPath(RemotePath.appending(e.name, to: pathField.stringValue))
         let cmd = e.isDirectory ? "rmdir \(sftpQuote(full))" : "rm \(sftpQuote(full))"
         runSFTP(command: cmd) { [weak self] _ in self?.openPath() }
     }
@@ -155,8 +191,8 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         alert.addButton(withTitle: "Rename")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let from = (pathField.stringValue as NSString).appendingPathComponent(e.name)
-        let to = (pathField.stringValue as NSString).appendingPathComponent(field.stringValue)
+        let from = RemotePath.sftpPath(RemotePath.appending(e.name, to: pathField.stringValue))
+        let to = RemotePath.sftpPath(RemotePath.appending(field.stringValue, to: pathField.stringValue))
         runSFTP(command: "rename \(sftpQuote(from)) \(sftpQuote(to))") { [weak self] _ in self?.openPath() }
     }
 
@@ -165,7 +201,7 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let remote = (pathField.stringValue as NSString).appendingPathComponent(url.lastPathComponent)
+        let remote = RemotePath.sftpPath(RemotePath.appending(url.lastPathComponent, to: pathField.stringValue))
         runSFTP(command: "put \(sftpQuote(url.path)) \(sftpQuote(remote))") { [weak self] result in
             if case .success = result { self?.openPath() }
         }
@@ -176,13 +212,14 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
         let panel = NSSavePanel()
         panel.nameFieldStringValue = e.name
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let remote = (pathField.stringValue as NSString).appendingPathComponent(e.name)
+        let remote = RemotePath.sftpPath(RemotePath.appending(e.name, to: pathField.stringValue))
         runSFTP(command: "get \(sftpQuote(remote)) \(sftpQuote(url.path))")
     }
 
     @objc private func editFile() {
         guard let e = selected(), !e.isDirectory else { return }
-        let full = (pathField.stringValue as NSString).appendingPathComponent(e.name)
+        let displayPath = RemotePath.appending(e.name, to: pathField.stringValue)
+        let full = RemotePath.sftpPath(displayPath)
         let ext = (e.name as NSString).pathExtension.lowercased()
         let allowed = ["env", "yml", "yaml", "json", "conf", "service", "txt", ""]
         guard allowed.contains(ext) || e.name.hasPrefix(".env") else {
@@ -202,7 +239,10 @@ final class FilesViewController: NSViewController, NSTableViewDataSource, NSTabl
                 alert.runModal()
                 return
             }
-            self.presentAsSheet(SimpleTextEditorViewController(server: self.server, path: full, content: body))
+            self.presentAsSheet(SimpleTextEditorViewController(server: self.server,
+                                                               path: full,
+                                                               displayPath: displayPath,
+                                                               content: body))
         }
     }
 
@@ -262,11 +302,13 @@ struct RemoteFileEntry {
 final class SimpleTextEditorViewController: NSViewController {
     private let server: Server
     private let path: String
+    private let displayPath: String
     private let textView = NSTextView()
 
-    init(server: Server, path: String, content: String) {
+    init(server: Server, path: String, displayPath: String, content: String) {
         self.server = server
         self.path = path
+        self.displayPath = displayPath
         super.init(nibName: nil, bundle: nil)
         textView.string = content
     }
@@ -276,7 +318,7 @@ final class SimpleTextEditorViewController: NSViewController {
 
     override func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
-        let title = NSTextField(labelWithString: path)
+        let title = NSTextField(labelWithString: displayPath)
         title.translatesAutoresizingMaskIntoConstraints = false
         let save = NSButton(title: "Save", target: self, action: #selector(save))
         let close = NSButton(title: "Close", target: self, action: #selector(closeSheet))

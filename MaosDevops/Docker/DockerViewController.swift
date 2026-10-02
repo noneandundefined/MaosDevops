@@ -85,6 +85,7 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
             actions.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
             actions.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -8)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -327,6 +328,7 @@ final class ComposeViewController: NSViewController {
             close.trailingAnchor.constraint(equalTo: pathField.trailingAnchor),
             close.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
         ])
+        L10n.apply(to: root)
         view = root
     }
 

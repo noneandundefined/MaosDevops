@@ -511,7 +511,6 @@ final class UpdateController {
     }
 
     private static func text(russian: String, english: String) -> String {
-        let language = Locale.preferredLanguages.first?.lowercased() ?? "en"
-        return language.hasPrefix("ru") ? russian : english
+        L10n.language == .russian ? russian : english
     }
 }

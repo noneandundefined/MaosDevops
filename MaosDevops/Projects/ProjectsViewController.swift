@@ -50,6 +50,7 @@ final class ProjectsViewController: NSViewController, NSOutlineViewDataSource, N
             deploy.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
             deploy.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -217,6 +218,7 @@ private final class ProjectEditorViewController: NSViewController {
             actionScroll.topAnchor.constraint(equalTo: actionsLabel.bottomAnchor, constant: 4), actionScroll.leadingAnchor.constraint(equalTo: root.centerXAnchor, constant: 6), actionScroll.trailingAnchor.constraint(equalTo: nameField.trailingAnchor), actionScroll.heightAnchor.constraint(equalToConstant: 260),
             buttons.trailingAnchor.constraint(equalTo: nameField.trailingAnchor), buttons.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -299,6 +301,7 @@ final class DeployWorkflowsViewController: NSViewController, NSTableViewDataSour
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14),
             scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14)
         ])
+        L10n.apply(to: root)
         view = root
         reload()
     }
@@ -424,6 +427,7 @@ private final class DeployWorkflowEditorViewController: NSViewController {
             confirmButton.centerYAnchor.constraint(equalTo: stopButton.centerYAnchor), confirmButton.leadingAnchor.constraint(equalTo: stopButton.trailingAnchor, constant: 14),
             buttons.trailingAnchor.constraint(equalTo: nameField.trailingAnchor), buttons.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -506,6 +510,7 @@ final class DeployViewController: NSViewController {
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14),
             scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14)
         ])
+        L10n.apply(to: root)
         view = root
     }
 

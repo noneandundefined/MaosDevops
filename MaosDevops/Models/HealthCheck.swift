@@ -52,24 +52,31 @@ final class HealthCheckRunner {
                 finish(false, "Invalid HTTP URL")
                 return
             }
-            let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = 10
-            config.timeoutIntervalForResource = 12
-            let session = URLSession(configuration: config)
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            session.dataTask(with: request) { _, response, error in
-                defer { session.finishTasksAndInvalidate() }
-                if let error = error {
-                    finish(false, error.localizedDescription)
-                    return
+            if let server = server {
+                let target = Self.shellQuote(check.target)
+                let command = """
+                command -v curl >/dev/null 2>&1 || exit 127
+                curl -L -sS --connect-timeout 8 --max-time 12 -o /dev/null -w 'HTTP %{http_code}' -- \(target)
+                """
+                sshManager.execute(on: server, command: command) { [weak self] result in
+                    switch result {
+                    case .success(let value) where value.exitCode == 0:
+                        let summary = value.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let code = Int(summary.split(separator: " ").last ?? "") ?? 0
+                        finish((200..<400).contains(code), summary.isEmpty ? "HTTP check completed" : summary)
+                    case .success(let value) where value.exitCode == 127:
+                        self?.runLocalHTTP(url, finish: finish)
+                    case .success(let value):
+                        let message = (value.stderr.isEmpty ? value.stdout : value.stderr)
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        finish(false, message.isEmpty ? "HTTP check failed (exit \(value.exitCode))" : message)
+                    case .failure(let error):
+                        finish(false, error.localizedDescription)
+                    }
                 }
-                guard let http = response as? HTTPURLResponse else {
-                    finish(false, "No HTTP response")
-                    return
-                }
-                finish((200..<400).contains(http.statusCode), "HTTP \(http.statusCode)")
-            }.resume()
+            } else {
+                runLocalHTTP(url, finish: finish)
+            }
 
         case .tcp:
             guard let endpoint = Self.parseTCP(check.target) else {
@@ -118,6 +125,31 @@ final class HealthCheckRunner {
         }
     }
 
+    private func runLocalHTTP(_ url: URL, finish: @escaping (Bool, String) -> Void) {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 12
+        let session = URLSession(configuration: config)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        session.dataTask(with: request) { _, response, error in
+            defer { session.finishTasksAndInvalidate() }
+            if let error = error {
+                finish(false, error.localizedDescription)
+                return
+            }
+            guard let http = response as? HTTPURLResponse else {
+                finish(false, "No HTTP response")
+                return
+            }
+            finish((200..<400).contains(http.statusCode), "HTTP \(http.statusCode)")
+        }.resume()
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     private static func parseTCP(_ value: String) -> (host: String, port: UInt16)? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix("["), let close = trimmed.firstIndex(of: "]") {
@@ -155,6 +187,7 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
     private var lastRun: [UUID: Date] = [:]
     private var timer: DispatchSourceTimer?
     private var running: Set<UUID> = []
+    private let detailsText = NSTextView()
 
     init(server: Server) {
         self.server = server
@@ -190,12 +223,31 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = true
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        let detailsTitle = NSTextField(labelWithString: "Full result")
+        detailsTitle.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        detailsTitle.translatesAutoresizingMaskIntoConstraints = false
+        detailsText.isEditable = false
+        detailsText.isRichText = false
+        detailsText.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        detailsText.frame = NSRect(x: 0, y: 0, width: 640, height: 100)
+        detailsText.string = "Select a health check to see the complete result."
+        detailsText.autoresizingMask = [.width, .height]
+        let detailsScroll = NSScrollView()
+        detailsScroll.documentView = detailsText
+        detailsScroll.hasVerticalScroller = true
+        detailsScroll.hasHorizontalScroller = true
+        detailsScroll.borderType = .bezelBorder
+        detailsScroll.translatesAutoresizingMaskIntoConstraints = false
 
         root.addSubview(title)
         root.addSubview(bar)
         root.addSubview(scroll)
+        root.addSubview(detailsTitle)
+        root.addSubview(detailsScroll)
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
             title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
@@ -204,7 +256,13 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
             scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 10),
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
+            scroll.bottomAnchor.constraint(equalTo: detailsTitle.topAnchor, constant: -8),
+            detailsTitle.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
+            detailsTitle.bottomAnchor.constraint(equalTo: detailsScroll.topAnchor, constant: -5),
+            detailsScroll.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
+            detailsScroll.trailingAnchor.constraint(equalTo: scroll.trailingAnchor),
+            detailsScroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12),
+            detailsScroll.heightAnchor.constraint(equalToConstant: 105)
         ])
         view = root
     }
@@ -230,6 +288,10 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
     private func reload() {
         checks = (try? AppServices.shared.storage.allHealthChecks(serverId: server.id)) ?? []
         table.reloadData()
+        if !checks.isEmpty, table.selectedRow < 0 {
+            table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        }
+        updateDetails()
     }
 
     private func selected() -> HealthCheck? {
@@ -254,6 +316,7 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
             self?.lastRun[check.id] = result.checkedAt
             self?.results[check.id] = result
             self?.table.reloadData()
+            self?.updateDetails()
         }
     }
 
@@ -298,6 +361,7 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
             field.textColor = result.healthy ? .systemGreen : .systemRed
         }
         field.lineBreakMode = .byTruncatingTail
+        field.toolTip = value
         field.translatesAutoresizingMaskIntoConstraints = false
         cell.addSubview(field)
         NSLayoutConstraint.activate([
@@ -306,6 +370,28 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
             field.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
         ])
         return cell
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        updateDetails()
+    }
+
+    private func updateDetails() {
+        guard let check = selected() else {
+            detailsText.string = L10n.text("Select a health check to see the complete result.")
+            return
+        }
+        var lines = ["\(check.name)", "\(check.kind.rawValue.uppercased()): \(check.target)"]
+        if running.contains(check.id) {
+            lines.append(L10n.text("Checking…"))
+        } else if let result = results[check.id] {
+            lines.append(result.healthy ? L10n.text("Healthy") : L10n.text("Failed"))
+            lines.append(result.summary)
+            lines.append("\(result.durationMilliseconds) ms")
+        } else {
+            lines.append(L10n.text("Not checked yet"))
+        }
+        detailsText.string = lines.joined(separator: "\n")
     }
 }
 
@@ -360,6 +446,7 @@ private final class HealthCheckEditorViewController: NSViewController {
             buttons.trailingAnchor.constraint(equalTo: form.trailingAnchor),
             buttons.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         ])
+        L10n.apply(to: root)
         view = root
     }
 

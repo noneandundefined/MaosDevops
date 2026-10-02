@@ -12,12 +12,23 @@ if ProcessInfo.processInfo.environment["MAOSDEVOPS_ASKPASS"] == "1" {
 // Headless regression probe used by the release build. It verifies that the
 // Files tab resolves a tilde to the remote user's absolute home directory.
 if CommandLine.arguments.contains("--files-path-self-test") {
+    let logSources = LogsViewController.parseSources("""
+    __SYSTEMD__
+    nginx.service
+    __DOCKER__
+    api
+    __FILES__
+    /var/log/syslog
+    """)
     let checks = [
         RemotePath.homeRelativeComponent("~") == "",
         RemotePath.homeRelativeComponent("~/logs/app.log") == "logs/app.log",
         RemotePath.homeRelativeComponent("/var/log") == nil,
         RemotePath.resolving("~", home: "/root") == "/root",
-        RemotePath.resolving("~/logs/app.log", home: "/root") == "/root/logs/app.log"
+        RemotePath.resolving("~/logs/app.log", home: "/root") == "/root/logs/app.log",
+        logSources[0] == ["nginx.service"],
+        logSources[1] == ["api"],
+        logSources[2] == ["/var/log/syslog"]
     ]
     if !checks.allSatisfy({ $0 }) {
         FileHandle.standardError.write(Data("Files path self-test failed\n".utf8))

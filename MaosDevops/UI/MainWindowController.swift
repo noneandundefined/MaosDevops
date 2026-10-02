@@ -9,11 +9,11 @@ enum SidebarItem: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .dashboard: return "Dashboard"
-        case .servers: return "Servers"
-        case .projects: return "Projects"
-        case .actions: return "Actions"
-        case .monitoring: return "Monitoring"
+        case .dashboard: return L10n.text("Dashboard")
+        case .servers: return L10n.text("Servers")
+        case .projects: return L10n.text("Projects")
+        case .actions: return L10n.text("Actions")
+        case .monitoring: return L10n.text("Monitoring")
         }
     }
 }
@@ -23,16 +23,16 @@ enum ServerDetailTab: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .overview: return "Overview"
-        case .terminal: return "Terminal"
+        case .overview: return L10n.text("Overview")
+        case .terminal: return L10n.text("Terminal")
         case .docker: return "Docker"
-        case .services: return "Services"
-        case .logs: return "Logs"
-        case .files: return "Files"
-        case .monitoring: return "Monitoring"
-        case .actions: return "Actions"
+        case .services: return L10n.text("Services")
+        case .logs: return L10n.text("Logs")
+        case .files: return L10n.text("Files")
+        case .monitoring: return L10n.text("Monitoring")
+        case .actions: return L10n.text("Actions")
         case .git: return "Git"
-        case .health: return "Health"
+        case .health: return L10n.text("Health")
         }
     }
 }
@@ -43,13 +43,13 @@ final class MainWindowController: NSWindowController {
     private let contentController = ContentContainerViewController()
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: 1100, height: 700),
+            contentRect: NSRect(x: 100, y: 100, width: 960, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Maos DevOps"
-        window.minSize = NSSize(width: 800, height: 500)
+        window.minSize = NSSize(width: 820, height: 500)
         window.isReleasedWhenClosed = false
         window.isOpaque = true
         window.alphaValue = 1.0
@@ -66,12 +66,12 @@ final class MainWindowController: NSWindowController {
         // The sidebar-style item has caused empty/invisible windows on Catalina.
         let sidebarItem = NSSplitViewItem(viewController: sidebarController)
         sidebarItem.canCollapse = false
-        sidebarItem.minimumThickness = 180
-        sidebarItem.maximumThickness = 260
+        sidebarItem.minimumThickness = 155
+        sidebarItem.maximumThickness = 220
         sidebarItem.holdingPriority = NSLayoutConstraint.Priority(rawValue: 260)
 
         let contentItem = NSSplitViewItem(viewController: contentController)
-        contentItem.minimumThickness = 500
+        contentItem.minimumThickness = 620
 
         splitViewController.addSplitViewItem(sidebarItem)
         splitViewController.addSplitViewItem(contentItem)
@@ -133,6 +133,7 @@ final class ContentContainerViewController: NSViewController {
             embedded.removeFromParent()
         }
         addChild(child)
+        L10n.apply(to: child.view)
         child.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(child.view)
         NSLayoutConstraint.activate([

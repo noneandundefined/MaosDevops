@@ -204,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
 
         let aboutItem = NSMenuItem(
-            title: "About Maos DevOps",
+            title: L10n.text("About Maos DevOps"),
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: ""
         )
@@ -212,16 +212,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(aboutItem)
 
         let updateItem = NSMenuItem(
-            title: "Check for Updates…",
+            title: L10n.text("Check for Updates…"),
             action: #selector(checkForUpdates(_:)),
             keyEquivalent: ""
         )
         updateItem.target = self
         appMenu.addItem(updateItem)
+
+        let languageItem = NSMenuItem(title: L10n.text("Language"), action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu(title: L10n.text("Language"))
+        for language in InterfaceLanguage.allCases {
+            let item = NSMenuItem(title: language.title, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = language.rawValue
+            item.state = L10n.language == language ? .on : .off
+            languageMenu.addItem(item)
+        }
+        languageItem.submenu = languageMenu
+        appMenu.addItem(languageItem)
         appMenu.addItem(.separator())
 
         let hideItem = NSMenuItem(
-            title: "Hide Maos DevOps",
+            title: L10n.text("Hide Maos DevOps"),
             action: #selector(NSApplication.hide(_:)),
             keyEquivalent: "h"
         )
@@ -229,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(hideItem)
 
         let hideOthersItem = NSMenuItem(
-            title: "Hide Others",
+            title: L10n.text("Hide Others"),
             action: #selector(NSApplication.hideOtherApplications(_:)),
             keyEquivalent: "h"
         )
@@ -238,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(hideOthersItem)
 
         let showAllItem = NSMenuItem(
-            title: "Show All",
+            title: L10n.text("Show All"),
             action: #selector(NSApplication.unhideAllApplications(_:)),
             keyEquivalent: ""
         )
@@ -247,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit Maos DevOps",
+            title: L10n.text("Quit Maos DevOps"),
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -256,35 +268,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let editMenuItem = NSMenuItem()
         menuBar.addItem(editMenuItem)
-        let editMenu = NSMenu(title: "Edit")
+        let editMenu = NSMenu(title: L10n.language == .russian ? "Правка" : "Edit")
         editMenuItem.submenu = editMenu
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(withTitle: L10n.text("Undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: L10n.text("Redo"), action: Selector(("redo:")), keyEquivalent: "Z")
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: L10n.text("Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L10n.text("Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L10n.text("Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: L10n.text("Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
         let windowMenuItem = NSMenuItem()
         menuBar.addItem(windowMenuItem)
-        let windowMenu = NSMenu(title: "Window")
+        let windowMenu = NSMenu(title: L10n.text("Window"))
         windowMenuItem.submenu = windowMenu
-        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: L10n.text("Minimize"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: L10n.text("Zoom"), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         windowMenu.addItem(.separator())
         let showMain = NSMenuItem(
-            title: "Show Maos DevOps Window",
+            title: L10n.text("Show Maos DevOps Window"),
             action: #selector(showMainWindowMenuAction(_:)),
             keyEquivalent: "0"
         )
         showMain.target = self
         windowMenu.addItem(showMain)
-        windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: L10n.text("Bring All to Front"), action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         NSApp.windowsMenu = windowMenu
     }
 
     @objc private func checkForUpdates(_ sender: Any?) {
         updateController?.checkForUpdates(silent: false)
+    }
+
+    @objc private func selectLanguage(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let language = InterfaceLanguage(rawValue: raw),
+              language != L10n.language else { return }
+
+        L10n.language = language
+        let oldFrame = mainWindowController?.window?.frame
+        mainWindowController?.close()
+        mainWindowController = MainWindowController()
+        if let frame = oldFrame { mainWindowController?.window?.setFrame(frame, display: false) }
+        configureMainMenu()
+        showMainWindow()
+        if let window = mainWindowController?.window {
+            updateController = UpdateController(presentingWindow: window)
+        }
     }
 }

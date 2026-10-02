@@ -7,6 +7,9 @@ final class ServerDetailViewController: NSViewController {
     private var snapshot = ServerSnapshot()
     private var isVisible = false
     private var availableTabs = ServerDetailTab.allCases
+    // Keep controllers alive while the user switches between server tabs.
+    // In particular, this preserves SSH terminal processes, tabs and output.
+    private var tabControllers: [ServerDetailTab: NSViewController] = [:]
 
     init(server: Server) {
         self.server = server
@@ -134,27 +137,38 @@ final class ServerDetailViewController: NSViewController {
     }
 
     private func showTab(_ tab: ServerDetailTab) {
+        let controller: NSViewController
+        if let cached = tabControllers[tab] {
+            controller = cached
+        } else {
+            controller = makeController(for: tab)
+            tabControllers[tab] = controller
+        }
+        container.embed(controller)
+    }
+
+    private func makeController(for tab: ServerDetailTab) -> NSViewController {
         switch tab {
         case .overview:
-            container.embed(ServerOverviewViewController(server: server))
+            return ServerOverviewViewController(server: server)
         case .terminal:
-            container.embed(TerminalViewController(server: server))
+            return TerminalViewController(server: server)
         case .docker:
-            container.embed(DockerViewController(server: server))
+            return DockerViewController(server: server)
         case .services:
-            container.embed(SystemdViewController(server: server))
+            return SystemdViewController(server: server)
         case .logs:
-            container.embed(LogsViewController(server: server))
+            return LogsViewController(server: server)
         case .files:
-            container.embed(FilesViewController(server: server))
+            return FilesViewController(server: server)
         case .monitoring:
-            container.embed(ServerMonitoringViewController(server: server))
+            return ServerMonitoringViewController(server: server)
         case .actions:
-            container.embed(ServerActionsViewController(server: server))
+            return ServerActionsViewController(server: server)
         case .git:
-            container.embed(GitViewController(server: server))
+            return GitViewController(server: server)
         case .health:
-            container.embed(HealthChecksViewController(server: server))
+            return HealthChecksViewController(server: server)
         }
     }
 }

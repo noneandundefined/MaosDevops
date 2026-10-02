@@ -709,6 +709,7 @@ final class SimpleTextEditorViewController: NSViewController {
     private let server: Server
     private let path: String
     private let maximumBytes: Int
+    private let initialContent: String
     private let textView = NSTextView()
     private let statusLabel = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
@@ -718,8 +719,8 @@ final class SimpleTextEditorViewController: NSViewController {
         self.server = server
         self.path = path
         self.maximumBytes = maximumBytes
+        self.initialContent = content
         super.init(nibName: nil, bundle: nil)
-        textView.string = content
     }
 
     @available(*, unavailable)
@@ -742,12 +743,22 @@ final class SimpleTextEditorViewController: NSViewController {
         bar.translatesAutoresizingMaskIntoConstraints = false
 
         textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        textView.frame = NSRect(x: 0, y: 0, width: 720, height: 500)
+        textView.autoresizingMask = [.width, .height]
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = true
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                  height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                                       height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = false
         textView.isRichText = false
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.string = initialContent
 
         let scroll = NSScrollView()
         scroll.documentView = textView
@@ -795,6 +806,7 @@ final class SimpleTextEditorViewController: NSViewController {
             statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: progress.leadingAnchor, constant: -8)
         ])
 
+        L10n.apply(to: root)
         view = root
     }
 

@@ -3,10 +3,13 @@ import Cocoa
 final class LogsViewController: NSViewController {
     private let server: Server
     private let sourcePopup = NSPopUpButton()
+    private let targetPopup = NSPopUpButton()
     private let targetField = NSTextField(string: "")
     private let filterPopup = NSPopUpButton()
     private let searchField = NSSearchField()
     private var streamVC: LogStreamViewController?
+    private var discoveredSources: [Int: [String]] = [:]
+    private var hasScanned = false
 
     init(server: Server) {
         self.server = server
@@ -19,17 +22,29 @@ final class LogsViewController: NSViewController {
     override func loadView() {
         let root = NSView()
         sourcePopup.addItems(withTitles: ["systemd", "Docker", "File", "Command"])
+        sourcePopup.target = self
+        sourcePopup.action = #selector(sourceChanged)
+        targetPopup.addItem(withTitle: L10n.text("Searching log sources…"))
+        targetPopup.target = self
+        targetPopup.action = #selector(targetChanged)
         filterPopup.addItems(withTitles: ["ALL", "ERROR", "WARN", "INFO"])
         filterPopup.target = self
         filterPopup.action = #selector(filterChanged)
-        targetField.placeholderString = "service / container / path / command"
+        targetField.placeholderString = "Selected source or a custom value"
         sourcePopup.translatesAutoresizingMaskIntoConstraints = false
+        targetPopup.translatesAutoresizingMaskIntoConstraints = false
         targetField.translatesAutoresizingMaskIntoConstraints = false
         filterPopup.translatesAutoresizingMaskIntoConstraints = false
         searchField.translatesAutoresizingMaskIntoConstraints = false
 
+        let help = NSTextField(wrappingLabelWithString:
+            "Log sources are detected automatically. Choose a type and an item, or enter a custom service, container, file path or command.")
+        help.textColor = .secondaryLabelColor
+        help.translatesAutoresizingMaskIntoConstraints = false
+        let scan = NSButton(title: "Scan", target: self, action: #selector(scanSources))
         let start = NSButton(title: "Start", target: self, action: #selector(start))
         let live = NSButton(title: "Live", target: self, action: #selector(startLive))
+        scan.translatesAutoresizingMaskIntoConstraints = false
         start.translatesAutoresizingMaskIntoConstraints = false
         live.translatesAutoresizingMaskIntoConstraints = false
 
@@ -38,36 +53,124 @@ final class LogsViewController: NSViewController {
         addChild(child)
         child.view.translatesAutoresizingMaskIntoConstraints = false
 
-        root.addSubview(sourcePopup)
-        root.addSubview(targetField)
-        root.addSubview(filterPopup)
-        root.addSubview(searchField)
-        root.addSubview(start)
-        root.addSubview(live)
-        root.addSubview(child.view)
+        [help, sourcePopup, targetPopup, scan, targetField, filterPopup,
+         searchField, start, live, child.view].forEach(root.addSubview)
 
         NSLayoutConstraint.activate([
-            sourcePopup.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
-            sourcePopup.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
-            targetField.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
-            targetField.leadingAnchor.constraint(equalTo: sourcePopup.trailingAnchor, constant: 8),
-            targetField.widthAnchor.constraint(equalToConstant: 260),
-            filterPopup.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
-            filterPopup.leadingAnchor.constraint(equalTo: targetField.trailingAnchor, constant: 8),
-            searchField.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
-            searchField.leadingAnchor.constraint(equalTo: filterPopup.trailingAnchor, constant: 8),
-            searchField.widthAnchor.constraint(equalToConstant: 160),
-            start.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
-            start.leadingAnchor.constraint(equalTo: searchField.trailingAnchor, constant: 8),
-            live.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
+            help.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
+            help.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+            help.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+
+            sourcePopup.topAnchor.constraint(equalTo: help.bottomAnchor, constant: 7),
+            sourcePopup.leadingAnchor.constraint(equalTo: help.leadingAnchor),
+            targetPopup.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
+            targetPopup.leadingAnchor.constraint(equalTo: sourcePopup.trailingAnchor, constant: 8),
+            targetPopup.trailingAnchor.constraint(equalTo: scan.leadingAnchor, constant: -8),
+            scan.centerYAnchor.constraint(equalTo: sourcePopup.centerYAnchor),
+            scan.trailingAnchor.constraint(equalTo: help.trailingAnchor),
+
+            targetField.topAnchor.constraint(equalTo: sourcePopup.bottomAnchor, constant: 7),
+            targetField.leadingAnchor.constraint(equalTo: help.leadingAnchor),
+            targetField.trailingAnchor.constraint(equalTo: filterPopup.leadingAnchor, constant: -8),
+            filterPopup.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
+            filterPopup.trailingAnchor.constraint(equalTo: searchField.leadingAnchor, constant: -8),
+            searchField.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
+            searchField.widthAnchor.constraint(equalToConstant: 150),
+            searchField.trailingAnchor.constraint(equalTo: start.leadingAnchor, constant: -8),
+            start.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
+            live.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
             live.leadingAnchor.constraint(equalTo: start.trailingAnchor, constant: 6),
-            child.view.topAnchor.constraint(equalTo: sourcePopup.bottomAnchor, constant: 8),
+            live.trailingAnchor.constraint(equalTo: help.trailingAnchor),
+
+            child.view.topAnchor.constraint(equalTo: targetField.bottomAnchor, constant: 8),
             child.view.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             child.view.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             child.view.bottomAnchor.constraint(equalTo: root.bottomAnchor)
         ])
+        L10n.apply(to: root)
         view = root
         searchField.delegate = self
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        if !hasScanned { scanSources() }
+    }
+
+    @objc private func scanSources() {
+        hasScanned = true
+        targetPopup.removeAllItems()
+        targetPopup.addItem(withTitle: L10n.text("Searching log sources…"))
+        targetPopup.isEnabled = false
+
+        let command = """
+        printf '__SYSTEMD__\n'
+        if command -v systemctl >/dev/null 2>&1; then
+          systemctl list-units --type=service --all --no-legend --plain 2>/dev/null | awk '{print $1}' | head -200
+        fi
+        printf '__DOCKER__\n'
+        if command -v docker >/dev/null 2>&1; then
+          docker ps -a --format '{{.Names}}' 2>/dev/null | head -200
+        fi
+        printf '__FILES__\n'
+        for root in /var/log "$HOME"; do
+          [ -d "$root" ] || continue
+          find "$root" -maxdepth 4 -type f \\( -name '*.log' -o -name syslog -o -name messages \\) -readable -print 2>/dev/null
+        done | awk '!seen[$0]++' | head -200
+        """
+        AppServices.shared.sshManager.execute(on: server, command: command) { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success(let value):
+                self.discoveredSources = Self.parseSources(value.stdout)
+            case .failure:
+                self.discoveredSources = [:]
+            }
+            self.sourceChanged()
+        }
+    }
+
+    static func parseSources(_ output: String) -> [Int: [String]] {
+        var result: [Int: [String]] = [:]
+        var section: Int?
+        for rawLine in output.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+            switch line {
+            case "__SYSTEMD__": section = 0
+            case "__DOCKER__": section = 1
+            case "__FILES__": section = 2
+            default:
+                if let section = section, !line.isEmpty, !(result[section] ?? []).contains(line) {
+                    result[section, default: []].append(line)
+                }
+            }
+        }
+        return result
+    }
+
+    @objc private func sourceChanged() {
+        let index = sourcePopup.indexOfSelectedItem
+        let values = discoveredSources[index] ?? []
+        targetPopup.removeAllItems()
+        if index == 3 {
+            targetPopup.addItem(withTitle: L10n.text("Enter a command below"))
+            targetPopup.isEnabled = false
+            targetField.stringValue = ""
+        } else if values.isEmpty {
+            targetPopup.addItem(withTitle: L10n.text("No sources found — enter one below"))
+            targetPopup.isEnabled = false
+            targetField.stringValue = ""
+        } else {
+            targetPopup.addItems(withTitles: values)
+            targetPopup.isEnabled = true
+            targetPopup.selectItem(at: 0)
+            targetField.stringValue = values[0]
+        }
+    }
+
+    @objc private func targetChanged() {
+        guard targetPopup.isEnabled, let value = targetPopup.titleOfSelectedItem else { return }
+        targetField.stringValue = value
     }
 
     @objc private func start() { run(live: false) }
@@ -81,18 +184,36 @@ final class LogsViewController: NSViewController {
         let cmd: String
         switch sourcePopup.indexOfSelectedItem {
         case 0:
-            let unit = target.isEmpty ? "*" : target
-            cmd = live ? "journalctl -fu \(unit) -n 100 --no-pager" : "journalctl -u \(unit) -n 300 --no-pager"
+            if target.isEmpty {
+                cmd = live ? "journalctl -f -n 100 --no-pager" : "journalctl -n 300 --no-pager"
+            } else {
+                let unit = shellQuote(target)
+                cmd = live ? "journalctl -fu \(unit) -n 100 --no-pager" : "journalctl -u \(unit) -n 300 --no-pager"
+            }
         case 1:
-            let name = target.isEmpty ? "$(docker ps -q | head -1)" : target
+            guard !target.isEmpty else {
+                streamVC?.restart(command: "printf '%s\\n' 'Select a Docker container first.'", streaming: false,
+                                  levelFilter: "ALL", search: "")
+                return
+            }
+            let name = shellQuote(target)
             cmd = live ? "docker logs -f --tail 100 \(name)" : "docker logs --tail 300 \(name)"
         case 2:
-            let path = target.isEmpty ? "/var/log/syslog" : target
+            guard !target.isEmpty else {
+                streamVC?.restart(command: "printf '%s\\n' 'Select a log file first.'", streaming: false,
+                                  levelFilter: "ALL", search: "")
+                return
+            }
+            let path = shellQuote(target)
             cmd = live ? "tail -n 100 -F \(path)" : "tail -n 300 \(path)"
         default:
             cmd = target.isEmpty ? "dmesg | tail -n 100" : target
         }
         streamVC?.restart(command: cmd, streaming: live, levelFilter: filterPopup.titleOfSelectedItem ?? "ALL", search: searchField.stringValue)
+    }
+
+    private func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
 
@@ -151,6 +272,8 @@ final class LogStreamViewController: NSViewController {
         textView.isEditable = false
         textView.isRichText = false
         textView.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.frame = NSRect(x: 0, y: 0, width: 680, height: 360)
+        textView.autoresizingMask = [.width, .height]
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .bezelBorder
@@ -169,6 +292,7 @@ final class LogStreamViewController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
             scrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -12)
         ])
+        L10n.apply(to: root)
         view = root
     }
 

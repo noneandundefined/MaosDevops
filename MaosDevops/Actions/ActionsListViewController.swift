@@ -62,6 +62,7 @@ final class ActionsListViewController: NSViewController, NSTableViewDataSource, 
             outScroll.trailingAnchor.constraint(equalTo: scroll.trailingAnchor),
             outScroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -290,6 +291,7 @@ final class ActionEditorViewController: NSViewController {
             buttons.trailingAnchor.constraint(equalTo: form.trailingAnchor),
             buttons.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -358,6 +360,7 @@ final class ServerActionsViewController: NSViewController {
             list.view.topAnchor.constraint(equalTo: root.topAnchor),
             list.view.bottomAnchor.constraint(equalTo: root.bottomAnchor)
         ])
+        L10n.apply(to: root)
         view = root
     }
 }

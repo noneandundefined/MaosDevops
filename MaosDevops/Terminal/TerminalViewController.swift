@@ -51,6 +51,7 @@ final class TerminalViewController: NSViewController, NSTabViewDelegate {
             tabView.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -8),
             tabView.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -8)
         ])
+        L10n.apply(to: root)
         view = root
     }
 
@@ -167,6 +168,7 @@ final class TerminalSessionController: NSViewController, NSTextViewDelegate, NST
             send.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -4),
             send.centerYAnchor.constraint(equalTo: inputField.centerYAnchor)
         ])
+        L10n.apply(to: root)
         view = root
     }
 

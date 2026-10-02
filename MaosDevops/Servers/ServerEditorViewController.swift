@@ -115,6 +115,7 @@ final class ServerEditorViewController: NSViewController {
             buttons.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         ])
 
+        L10n.apply(to: root)
         view = root
     }
 

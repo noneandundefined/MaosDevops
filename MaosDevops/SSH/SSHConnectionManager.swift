@@ -457,7 +457,7 @@ final class SSHSession {
     ) -> String {
         var remote = command
         if let wd = workingDirectory, !wd.isEmpty {
-            remote = "cd \(shellEscape(wd)) && \(command)"
+            remote = "cd \(workingDirectoryExpression(wd)) && \(command)"
         }
         if !environment.isEmpty {
             let valid = environment.filter { key, _ in
@@ -473,6 +473,15 @@ final class SSHSession {
             }
         }
         return remote
+    }
+
+    private func workingDirectoryExpression(_ path: String) -> String {
+        if path == "~" { return "\"$HOME\"" }
+        if path.hasPrefix("~/") {
+            let relative = String(path.dropFirst(2))
+            return relative.isEmpty ? "\"$HOME\"" : "\"$HOME\"/\(shellEscape(relative))"
+        }
+        return shellEscape(path)
     }
 
     private func readCapped(from handle: FileHandle, limit: Int) -> Data {
@@ -748,6 +757,7 @@ final class SSHConnectionManager {
 
             let partialURL = localURL.deletingLastPathComponent()
                 .appendingPathComponent(".\(localURL.lastPathComponent).maos-part-\(UUID().uuidString)")
+            var destination: FileHandle?
 
             do {
                 let total = try session.remoteFileSize(remotePath)
@@ -768,8 +778,7 @@ final class SSHConnectionManager {
                 }
 
                 FileManager.default.createFile(atPath: partialURL.path, contents: nil)
-                let destination = try FileHandle(forWritingTo: partialURL)
-                defer { destination.closeFile() }
+                destination = try FileHandle(forWritingTo: partialURL)
 
                 try process.run()
                 var completed: Int64 = 0
@@ -777,7 +786,7 @@ final class SSHConnectionManager {
                 while true {
                     let chunk = output.fileHandleForReading.readData(ofLength: 64 * 1024)
                     if chunk.isEmpty { break }
-                    destination.write(chunk)
+                    destination?.write(chunk)
                     completed += Int64(chunk.count)
 
                     let percent = total > 0 ? Int((completed * 100) / total) : 100
@@ -795,6 +804,13 @@ final class SSHConnectionManager {
                     try? FileManager.default.removeItem(at: partialURL)
                     throw SSHError.commandFailed(process.terminationStatus, stderrText)
                 }
+                guard total == 0 || completed > 0 else {
+                    throw SSHError.commandFailed(-1, "The server reported \(total) bytes, but no file data was received.")
+                }
+
+                destination?.synchronizeFile()
+                destination?.closeFile()
+                destination = nil
 
                 if FileManager.default.fileExists(atPath: localURL.path) {
                     try FileManager.default.removeItem(at: localURL)
@@ -808,6 +824,7 @@ final class SSHConnectionManager {
                     completion(.success(result))
                 }
             } catch {
+                destination?.closeFile()
                 try? FileManager.default.removeItem(at: partialURL)
                 DispatchQueue.main.async { completion(.failure(error)) }
             }

@@ -116,9 +116,7 @@ final class LogsViewController: NSViewController {
         # that live inside a directory named "logs".
         for root in "$HOME/neosync" /var/log "$HOME"; do
           [ -d "$root" ] || continue
-          find "$root" -maxdepth 8 -type f -readable \\( \
-            -name '*.log' -o -name '*.log.*' -o -name syslog -o -name messages -o -path '*/logs/*' \
-          \\) -print 2>/dev/null
+          find "$root" -xdev -maxdepth 8 -type f -readable \\( -name '*.log' -o -name '*.log.*' -o -name syslog -o -name messages -o -path '*/logs/*' \\) -print 2>/dev/null
         done | awk '!seen[$0]++' | head -400
         """
         AppServices.shared.sshManager.execute(on: server, command: command) { [weak self] result in

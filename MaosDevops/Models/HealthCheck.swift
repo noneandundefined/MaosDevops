@@ -189,6 +189,8 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
         table.dataSource = self
         table.delegate = self
         table.rowHeight = 25
+        table.target = self
+        table.doubleAction = #selector(editCheckByDoubleClick)
         for (id, label, width) in [("name", "Name", 150), ("kind", "Type", 70),
                                    ("target", "Target", 260), ("status", "Status", 220)] as [(String, String, CGFloat)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
@@ -299,6 +301,12 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
     @objc private func runSelected() { if let check = selected() { run(check) } }
     @objc private func addCheck() { presentEditor(nil) }
     @objc private func editCheck() { if let check = selected() { presentEditor(check) } }
+
+    @objc private func editCheckByDoubleClick() {
+        guard table.clickedRow >= 0, table.clickedRow < checks.count else { return }
+        table.selectRowIndexes(IndexSet(integer: table.clickedRow), byExtendingSelection: false)
+        presentEditor(checks[table.clickedRow])
+    }
     @objc private func deleteCheck() {
         guard let check = selected() else { return }
         let alert = NSAlert()

@@ -47,14 +47,17 @@ final class LogsViewController: NSViewController {
         scan.translatesAutoresizingMaskIntoConstraints = false
         start.translatesAutoresizingMaskIntoConstraints = false
         live.translatesAutoresizingMaskIntoConstraints = false
+        let controls = NSStackView(views: [filterPopup, searchField, start, live])
+        controls.orientation = .horizontal
+        controls.spacing = 6
+        controls.translatesAutoresizingMaskIntoConstraints = false
 
         let child = LogStreamViewController(server: server, title: "Logs", command: "echo 'Select a source and press Start'")
         streamVC = child
         addChild(child)
         child.view.translatesAutoresizingMaskIntoConstraints = false
 
-        [help, sourcePopup, targetPopup, scan, targetField, filterPopup,
-         searchField, start, live, child.view].forEach(root.addSubview)
+        [help, sourcePopup, targetPopup, scan, targetField, controls, child.view].forEach(root.addSubview)
 
         NSLayoutConstraint.activate([
             help.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
@@ -71,18 +74,13 @@ final class LogsViewController: NSViewController {
 
             targetField.topAnchor.constraint(equalTo: sourcePopup.bottomAnchor, constant: 7),
             targetField.leadingAnchor.constraint(equalTo: help.leadingAnchor),
-            targetField.trailingAnchor.constraint(equalTo: filterPopup.leadingAnchor, constant: -8),
-            filterPopup.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
-            filterPopup.trailingAnchor.constraint(equalTo: searchField.leadingAnchor, constant: -8),
-            searchField.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
-            searchField.widthAnchor.constraint(equalToConstant: 150),
-            searchField.trailingAnchor.constraint(equalTo: start.leadingAnchor, constant: -8),
-            start.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
-            live.centerYAnchor.constraint(equalTo: targetField.centerYAnchor),
-            live.leadingAnchor.constraint(equalTo: start.trailingAnchor, constant: 6),
-            live.trailingAnchor.constraint(equalTo: help.trailingAnchor),
+            targetField.trailingAnchor.constraint(equalTo: help.trailingAnchor),
+            controls.topAnchor.constraint(equalTo: targetField.bottomAnchor, constant: 6),
+            controls.leadingAnchor.constraint(equalTo: help.leadingAnchor),
+            controls.trailingAnchor.constraint(lessThanOrEqualTo: help.trailingAnchor),
+            searchField.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
 
-            child.view.topAnchor.constraint(equalTo: targetField.bottomAnchor, constant: 8),
+            child.view.topAnchor.constraint(equalTo: controls.bottomAnchor, constant: 8),
             child.view.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             child.view.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             child.view.bottomAnchor.constraint(equalTo: root.bottomAnchor)

@@ -2,7 +2,7 @@ import Cocoa
 
 final class ServerDetailViewController: NSViewController {
     private var server: Server
-    private let tabControl = NSSegmentedControl()
+    private let tabControl = NSPopUpButton()
     private let container = ContentContainerViewController()
     private var snapshot = ServerSnapshot()
     private var isVisible = false
@@ -35,14 +35,14 @@ final class ServerDetailViewController: NSViewController {
         let subtitle = NSTextField(labelWithString: "\(server.username)@\(server.host):\(server.port)")
         subtitle.textColor = .secondaryLabelColor
         subtitle.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        subtitle.lineBreakMode = .byTruncatingMiddle
+        subtitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         subtitle.translatesAutoresizingMaskIntoConstraints = false
 
         configureTabs(selecting: .overview)
-        tabControl.selectedSegment = 0
         tabControl.target = self
         tabControl.action = #selector(tabChanged)
         tabControl.translatesAutoresizingMaskIntoConstraints = false
-        tabControl.segmentStyle = .texturedRounded
 
         addChild(container)
         container.view.translatesAutoresizingMaskIntoConstraints = false
@@ -62,6 +62,7 @@ final class ServerDetailViewController: NSViewController {
 
             subtitle.leadingAnchor.constraint(equalTo: title.trailingAnchor, constant: 12),
             subtitle.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            subtitle.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -12),
 
             tabControl.topAnchor.constraint(equalTo: back.bottomAnchor, constant: 10),
             tabControl.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
@@ -107,15 +108,16 @@ final class ServerDetailViewController: NSViewController {
     }
 
     @objc private func tabChanged() {
-        let idx = tabControl.selectedSegment
+        let idx = tabControl.indexOfSelectedItem
         guard idx >= 0, idx < availableTabs.count else { return }
         showTab(availableTabs[idx])
     }
 
     private func updateAvailableTabs(for snapshot: ServerSnapshot) {
         guard snapshot.status == .online else { return }
-        let selected = tabControl.selectedSegment >= 0 && tabControl.selectedSegment < availableTabs.count
-            ? availableTabs[tabControl.selectedSegment] : .overview
+        let selectedIndex = tabControl.indexOfSelectedItem
+        let selected = selectedIndex >= 0 && selectedIndex < availableTabs.count
+            ? availableTabs[selectedIndex] : .overview
         let next = ServerDetailTab.allCases.filter { tab in
             if tab == .docker { return snapshot.dockerAvailable }
             if tab == .services { return snapshot.systemdAvailable }
@@ -129,11 +131,9 @@ final class ServerDetailViewController: NSViewController {
     }
 
     private func configureTabs(selecting tab: ServerDetailTab) {
-        tabControl.segmentCount = availableTabs.count
-        for (index, item) in availableTabs.enumerated() {
-            tabControl.setLabel(item.title, forSegment: index)
-        }
-        tabControl.selectedSegment = availableTabs.firstIndex(of: tab) ?? 0
+        tabControl.removeAllItems()
+        tabControl.addItems(withTitles: availableTabs.map { $0.title })
+        tabControl.selectItem(at: availableTabs.firstIndex(of: tab) ?? 0)
     }
 
     private func showTab(_ tab: ServerDetailTab) {

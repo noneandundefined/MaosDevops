@@ -37,6 +37,11 @@ final class RemoteFileNode: NSObject {
 }
 
 final class FilesViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+    private struct UploadEntry {
+        let localURL: URL
+        let remotePath: String
+    }
+
     private static let editorLimit = 10 * 1024 * 1024
     private static let binaryExtensions: Set<String> = [
         "7z", "a", "avi", "bin", "bmp", "bz2", "class", "db", "dmg", "doc", "docx",
@@ -77,11 +82,16 @@ final class FilesViewController: NSViewController, NSOutlineViewDataSource, NSOu
         pathField.translatesAutoresizingMaskIntoConstraints = false
         pathField.placeholderString = "/etc/nginx"
 
-        let bar = NSStackView(views: [
-            goBtn, homeBtn, reloadBtn, mkdirBtn, uploadBtn, downloadBtn, renameBtn, deleteBtn, editBtn
-        ])
-        bar.orientation = .horizontal
-        bar.spacing = 6
+        let navigationRow = NSStackView(views: [goBtn, homeBtn, reloadBtn, mkdirBtn])
+        navigationRow.orientation = .horizontal
+        navigationRow.spacing = 6
+        let actionRow = NSStackView(views: [uploadBtn, downloadBtn, editBtn, renameBtn, deleteBtn])
+        actionRow.orientation = .horizontal
+        actionRow.spacing = 6
+        let bar = NSStackView(views: [navigationRow, actionRow])
+        bar.orientation = .vertical
+        bar.alignment = .leading
+        bar.spacing = 4
         bar.translatesAutoresizingMaskIntoConstraints = false
 
         outline.rowHeight = 22
@@ -90,6 +100,7 @@ final class FilesViewController: NSViewController, NSOutlineViewDataSource, NSOu
         outline.doubleAction = #selector(doubleClick)
         outline.allowsMultipleSelection = false
         outline.indentationPerLevel = 16
+        outline.registerForDraggedTypes([.fileURL])
 
         let nameColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
         nameColumn.title = "Name"
@@ -141,6 +152,7 @@ final class FilesViewController: NSViewController, NSOutlineViewDataSource, NSOu
 
             bar.topAnchor.constraint(equalTo: pathField.bottomAnchor, constant: 6),
             bar.leadingAnchor.constraint(equalTo: pathField.leadingAnchor),
+            bar.trailingAnchor.constraint(lessThanOrEqualTo: pathField.trailingAnchor),
 
             scroll.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 8),
             scroll.leadingAnchor.constraint(equalTo: pathField.leadingAnchor),
@@ -413,33 +425,125 @@ final class FilesViewController: NSViewController, NSOutlineViewDataSource, NSOu
     @objc private func upload() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Upload"
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
         let directory = selectedDirectory()
-        let remote = Self.join(directory.path, url.lastPathComponent)
-        showTransfer(title: "Uploading \(url.lastPathComponent)", progress: SSHFileTransferProgress(completedBytes: 0, totalBytes: 0))
+        uploadURLs(panel.urls, to: directory.path, refreshNode: directory.node)
+    }
 
+    private func uploadURLs(_ urls: [URL], to remoteDirectory: String, refreshNode: RemoteFileNode?) {
+        do {
+            let plan = try makeUploadPlan(urls: urls, remoteDirectory: remoteDirectory)
+            guard !plan.directories.isEmpty || !plan.files.isEmpty else { return }
+            setBusyTransfer("Preparing upload to \(remoteDirectory)…")
+            createRemoteDirectories(plan.directories) { [weak self] result in
+                guard let self = self else { return }
+                switch result {
+                case .failure(let error):
+                    self.hideTransfer()
+                    self.showError(title: "Upload failed", message: error.localizedDescription)
+                case .success:
+                    self.uploadFiles(plan.files, index: 0, refreshNode: refreshNode)
+                }
+            }
+        } catch {
+            showError(title: "Upload failed", message: error.localizedDescription)
+        }
+    }
+
+    private func makeUploadPlan(
+        urls: [URL],
+        remoteDirectory: String
+    ) throws -> (directories: [String], files: [UploadEntry]) {
+        var directories = Set<String>()
+        var files: [UploadEntry] = []
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey]
+
+        for url in urls {
+            let values = try url.resourceValues(forKeys: keys)
+            let remoteRoot = Self.join(remoteDirectory, url.lastPathComponent)
+            if values.isDirectory == true {
+                directories.insert(remoteRoot)
+                guard let enumerator = FileManager.default.enumerator(
+                    at: url,
+                    includingPropertiesForKeys: Array(keys),
+                    options: [],
+                    errorHandler: { _, _ in true }
+                ) else { continue }
+
+                for case let child as URL in enumerator {
+                    let relative = child.path.replacingOccurrences(of: url.path + "/", with: "")
+                    let remote = Self.join(remoteRoot, relative)
+                    let childValues = try child.resourceValues(forKeys: keys)
+                    if childValues.isDirectory == true {
+                        directories.insert(remote)
+                    } else if childValues.isRegularFile == true {
+                        files.append(UploadEntry(localURL: child, remotePath: remote))
+                    }
+                }
+            } else if values.isRegularFile == true {
+                files.append(UploadEntry(localURL: url, remotePath: remoteRoot))
+            }
+        }
+
+        return (directories.sorted { $0.count < $1.count }, files)
+    }
+
+    private func createRemoteDirectories(
+        _ directories: [String],
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        guard !directories.isEmpty else { completion(.success(())); return }
+        let command = "mkdir -p -- " + directories.map(shellQuote).joined(separator: " ")
+        AppServices.shared.sshManager.execute(on: server, command: command) { result in
+            switch result {
+            case .success(let value) where value.exitCode == 0:
+                completion(.success(()))
+            case .success(let value):
+                completion(.failure(SSHError.commandFailed(value.exitCode, value.stderr)))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
+    private func uploadFiles(_ files: [UploadEntry], index: Int, refreshNode: RemoteFileNode?) {
+        guard index < files.count else {
+            finishTransfer("Upload complete")
+            refresh(refreshNode)
+            return
+        }
+
+        let entry = files[index]
+        let title = "Uploading \(index + 1)/\(files.count): \(entry.localURL.lastPathComponent)"
+        showTransfer(title: title, progress: SSHFileTransferProgress(completedBytes: 0, totalBytes: 0))
         AppServices.shared.sshManager.uploadFile(
             on: server,
-            localURL: url,
-            remotePath: remote,
-            progress: { [weak self] snapshot in
-                self?.showTransfer(title: "Uploading \(url.lastPathComponent)", progress: snapshot)
+            localURL: entry.localURL,
+            remotePath: entry.remotePath,
+            progress: { [weak self] progress in
+                self?.showTransfer(title: title, progress: progress)
             },
             completion: { [weak self] result in
                 guard let self = self else { return }
                 switch result {
                 case .success:
-                    self.finishTransfer("Uploaded \(url.lastPathComponent)")
-                    self.refresh(directory.node)
+                    self.uploadFiles(files, index: index + 1, refreshNode: refreshNode)
                 case .failure(let error):
                     self.hideTransfer()
-                    self.showError(title: "Upload failed", message: error.localizedDescription)
+                    self.showError(
+                        title: "Upload failed",
+                        message: "\(entry.localURL.path)\n\n\(error.localizedDescription)"
+                    )
                 }
             }
         )
+    }
+
+    private func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     @objc private func download() {
@@ -650,6 +754,44 @@ final class FilesViewController: NSViewController, NSOutlineViewDataSource, NSOu
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
         (item as? RemoteFileNode)?.isDirectory == true
+    }
+
+    func outlineView(
+        _ outlineView: NSOutlineView,
+        validateDrop info: NSDraggingInfo,
+        proposedItem item: Any?,
+        proposedChildIndex index: Int
+    ) -> NSDragOperation {
+        guard info.draggingPasteboard.canReadObject(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) else { return [] }
+
+        if let node = item as? RemoteFileNode {
+            let destination = node.isDirectory ? node : node.parent
+            outlineView.setDropItem(destination, dropChildIndex: NSOutlineViewDropOnItemIndex)
+        } else {
+            outlineView.setDropItem(nil, dropChildIndex: NSOutlineViewDropOnItemIndex)
+        }
+        return .copy
+    }
+
+    func outlineView(
+        _ outlineView: NSOutlineView,
+        acceptDrop info: NSDraggingInfo,
+        item: Any?,
+        childIndex index: Int
+    ) -> Bool {
+        guard let objects = info.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL], !objects.isEmpty else { return false }
+
+        let node = item as? RemoteFileNode
+        let destination = node?.isDirectory == true ? node : node?.parent
+        let path = destination?.path ?? rootPath
+        uploadURLs(objects, to: path, refreshNode: destination)
+        return true
     }
 
     // MARK: - NSOutlineViewDelegate

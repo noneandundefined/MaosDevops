@@ -37,15 +37,15 @@ Silicon.
 | Area | Capabilities |
 |---|---|
 | Servers | Groups, favorites, password/key authentication, connection testing and live overview |
-| Terminal | Persistent multi-tab SSH sessions that survive server-tab switching, history, reconnect, copy/paste and bounded output |
+| Terminal | Persistent multi-tab SSH sessions, saved arrow-key history, favorite commands, reconnect, local `clear` and bounded output |
 | Monitoring | CPU, RAM, disk, load and network history with native 15m/1h/24h charts |
 | Docker | Containers, stats, logs, shell, inspect, lifecycle controls and Compose operations |
 | systemd | Service status, start/stop/restart, enable/disable and journal streaming |
 | Logs | Automatic discovery of systemd units, Docker containers and log files, plus command streams, pause, search and filtering |
-| Files | Lazy remote file tree, upload/download with progress, rename, delete, folders and a guarded UTF-8 text editor |
+| Files | Lazy remote file tree, file/folder picker, drag-and-drop recursive uploads, download with progress, rename, delete and a guarded UTF-8 text editor |
 | Automation | Custom actions, quick actions, projects, deploy workflows and rollback actions |
 | Git | Automatic repository discovery, selectable paths, status, branches, history, diff, pull, fetch and ahead/behind information |
-| Health checks | Scheduled HTTP checks from the Linux server, TCP and remote shell checks, latency and a scrollable full result |
+| Health checks | Reachability indicators, scheduled HTTP checks (including 403 responses), TCP and remote shell checks, latency and full error details |
 
 The complete implementation review is maintained in
 [`docs/TZ_CHECKLIST.md`](docs/TZ_CHECKLIST.md).
@@ -87,7 +87,7 @@ bash Scripts/build.sh
 Create the same ZIP and DMG artifacts used by GitHub Actions:
 
 ```bash
-APP_VERSION=0.4.0 BUILD_NUMBER=1 bash Scripts/package.sh
+APP_VERSION=0.5.0 BUILD_NUMBER=1 bash Scripts/package.sh
 ```
 
 The packaging script validates the final Mach-O architecture, minimum macOS

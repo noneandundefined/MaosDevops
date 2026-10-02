@@ -36,15 +36,21 @@ final class SystemdViewController: NSViewController, NSTableViewDataSource, NSTa
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        let actions = NSStackView()
-        actions.orientation = .horizontal
-        actions.spacing = 6
-        actions.translatesAutoresizingMaskIntoConstraints = false
+        var actionButtons: [NSButton] = []
         for (t, s) in [("Start", #selector(startS)), ("Stop", #selector(stopS)), ("Restart", #selector(restartS)),
                        ("Status", #selector(statusS)), ("Enable", #selector(enableS)), ("Disable", #selector(disableS)),
                        ("Logs", #selector(logsS)), ("Live Logs", #selector(liveLogsS))] as [(String, Selector)] {
-            actions.addArrangedSubview(NSButton(title: t, target: self, action: s))
+            actionButtons.append(NSButton(title: t, target: self, action: s))
         }
+        let actionRow1 = NSStackView(views: Array(actionButtons.prefix(4)))
+        let actionRow2 = NSStackView(views: Array(actionButtons.dropFirst(4)))
+        actionRow1.spacing = 6
+        actionRow2.spacing = 6
+        let actions = NSStackView(views: [actionRow1, actionRow2])
+        actions.orientation = .vertical
+        actions.alignment = .leading
+        actions.spacing = 4
+        actions.translatesAutoresizingMaskIntoConstraints = false
 
         root.addSubview(refresh)
         root.addSubview(statusLabel)
@@ -101,18 +107,27 @@ final class SystemdViewController: NSViewController, NSTableViewDataSource, NSTa
         return services[row]
     }
 
-    private func systemctl(_ args: String) {
+    private func systemctl(_ args: String, confirm: Bool = false) {
         guard let s = selected() else { return }
+        if confirm {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "\(args.capitalized) \(s.name)?"
+            alert.informativeText = "This action can interrupt a server service."
+            alert.addButton(withTitle: args.capitalized)
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
         AppServices.shared.sshManager.execute(on: server, command: "systemctl \(args) \(s.name)") { [weak self] _ in
             self?.reload()
         }
     }
 
     @objc private func startS() { systemctl("start") }
-    @objc private func stopS() { systemctl("stop") }
-    @objc private func restartS() { systemctl("restart") }
+    @objc private func stopS() { systemctl("stop", confirm: true) }
+    @objc private func restartS() { systemctl("restart", confirm: true) }
     @objc private func enableS() { systemctl("enable") }
-    @objc private func disableS() { systemctl("disable") }
+    @objc private func disableS() { systemctl("disable", confirm: true) }
     @objc private func statusS() {
         guard let s = selected() else { return }
         AppServices.shared.sshManager.execute(on: server, command: "systemctl status \(s.name) --no-pager -l") { result in

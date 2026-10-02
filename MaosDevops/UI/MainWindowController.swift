@@ -43,13 +43,13 @@ final class MainWindowController: NSWindowController {
     private let contentController = ContentContainerViewController()
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: 960, height: 600),
+            contentRect: NSRect(x: 100, y: 100, width: 940, height: 540),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Maos DevOps"
-        window.minSize = NSSize(width: 820, height: 500)
+        window.minSize = NSSize(width: 760, height: 420)
         window.isReleasedWhenClosed = false
         window.isOpaque = true
         window.alphaValue = 1.0
@@ -71,7 +71,7 @@ final class MainWindowController: NSWindowController {
         sidebarItem.holdingPriority = NSLayoutConstraint.Priority(rawValue: 260)
 
         let contentItem = NSSplitViewItem(viewController: contentController)
-        contentItem.minimumThickness = 620
+        contentItem.minimumThickness = 580
 
         splitViewController.addSplitViewItem(sidebarItem)
         splitViewController.addSplitViewItem(contentItem)

@@ -107,8 +107,14 @@ final class GitViewController: NSViewController {
         let diff = NSButton(title: "Changes", target: self, action: #selector(showDiff))
         let fetch = NSButton(title: "Fetch", target: self, action: #selector(fetchRepo))
         let pull = NSButton(title: "Pull", target: self, action: #selector(pullRepo))
-        let bar = NSStackView(views: [status, branch, log, diff, fetch, pull])
-        bar.spacing = 6
+        let primaryActions = NSStackView(views: [status, branch, log])
+        let secondaryActions = NSStackView(views: [diff, fetch, pull])
+        primaryActions.spacing = 6
+        secondaryActions.spacing = 6
+        let bar = NSStackView(views: [primaryActions, secondaryActions])
+        bar.orientation = .vertical
+        bar.alignment = .leading
+        bar.spacing = 4
         bar.translatesAutoresizingMaskIntoConstraints = false
 
         summary.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)

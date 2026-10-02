@@ -49,10 +49,7 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        let actions = NSStackView()
-        actions.orientation = .horizontal
-        actions.spacing = 6
-        actions.translatesAutoresizingMaskIntoConstraints = false
+        var actionButtons: [NSButton] = []
         for (title, sel) in [
             ("Start", #selector(startSelected)), ("Stop", #selector(stopSelected)),
             ("Restart", #selector(restartSelected)), ("Logs", #selector(logsSelected)),
@@ -60,8 +57,17 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
             ("Inspect", #selector(inspectSelected)), ("Stats", #selector(statsSelected)),
             ("Remove", #selector(removeSelected))
         ] as [(String, Selector)] {
-            actions.addArrangedSubview(NSButton(title: title, target: self, action: sel))
+            actionButtons.append(NSButton(title: title, target: self, action: sel))
         }
+        let actionRow1 = NSStackView(views: Array(actionButtons.prefix(5)))
+        let actionRow2 = NSStackView(views: Array(actionButtons.dropFirst(5)))
+        actionRow1.spacing = 6
+        actionRow2.spacing = 6
+        let actions = NSStackView(views: [actionRow1, actionRow2])
+        actions.orientation = .vertical
+        actions.alignment = .leading
+        actions.spacing = 4
+        actions.translatesAutoresizingMaskIntoConstraints = false
 
         root.addSubview(refresh)
         root.addSubview(compose)
@@ -161,16 +167,25 @@ final class DockerViewController: NSViewController, NSTableViewDataSource, NSTab
         return containers[row]
     }
 
-    private func docker(_ args: String) {
+    private func docker(_ args: String, confirm: Bool = false) {
         guard let c = selected() else { return }
+        if confirm {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "\(args.capitalized) container \(c.name)?"
+            alert.informativeText = "This action can interrupt a running service."
+            alert.addButton(withTitle: args.capitalized)
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
         AppServices.shared.sshManager.execute(on: server, command: "docker \(args) \(c.name)") { [weak self] _ in
             self?.reload()
         }
     }
 
     @objc private func startSelected() { docker("start") }
-    @objc private func stopSelected() { docker("stop") }
-    @objc private func restartSelected() { docker("restart") }
+    @objc private func stopSelected() { docker("stop", confirm: true) }
+    @objc private func restartSelected() { docker("restart", confirm: true) }
     @objc private func shellSelected() {
         guard let c = selected() else { return }
         let name = "'" + c.name.replacingOccurrences(of: "'", with: "'\\''") + "'"
@@ -342,6 +357,15 @@ final class ComposeViewController: NSViewController {
     @objc private func build() { run("build") }
 
     private func run(_ args: String) {
+        if args == "down" || args == "restart" {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Run docker compose \(args)?"
+            alert.informativeText = "This action can interrupt running services."
+            alert.addButton(withTitle: "Run")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
         let dir = pathField.stringValue
         AppServices.shared.sshManager.execute(on: server, command: "docker compose \(args)", workingDirectory: dir) { [weak self] result in
             let text: String

@@ -56,14 +56,14 @@ final class HealthCheckRunner {
                 let target = Self.shellQuote(check.target)
                 let command = """
                 command -v curl >/dev/null 2>&1 || exit 127
-                curl -L -sS --connect-timeout 8 --max-time 12 -o /dev/null -w 'HTTP %{http_code}' -- \(target)
+                curl -k -L -sS --connect-timeout 8 --max-time 12 -o /dev/null -w 'HTTP %{http_code}' -- \(target)
                 """
                 sshManager.execute(on: server, command: command) { [weak self] result in
                     switch result {
                     case .success(let value) where value.exitCode == 0:
                         let summary = value.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                         let code = Int(summary.split(separator: " ").last ?? "") ?? 0
-                        finish((200..<400).contains(code), summary.isEmpty ? "HTTP check completed" : summary)
+                        finish((100...599).contains(code), summary.isEmpty ? "HTTP check completed" : summary)
                     case .success(let value) where value.exitCode == 127:
                         self?.runLocalHTTP(url, finish: finish)
                     case .success(let value):
@@ -142,7 +142,7 @@ final class HealthCheckRunner {
                 finish(false, "No HTTP response")
                 return
             }
-            finish((200..<400).contains(http.statusCode), "HTTP \(http.statusCode)")
+            finish((100...599).contains(http.statusCode), "HTTP \(http.statusCode) — server responded")
         }.resume()
     }
 
@@ -325,6 +325,13 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
     @objc private func editCheck() { if let check = selected() { presentEditor(check) } }
     @objc private func deleteCheck() {
         guard let check = selected() else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Delete health check?"
+        alert.informativeText = check.name
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         try? AppServices.shared.storage.deleteHealthCheck(id: check.id)
         results[check.id] = nil
         reload()
@@ -358,7 +365,9 @@ final class HealthChecksViewController: NSViewController, NSTableViewDataSource,
         let field = NSTextField(labelWithString: value)
         field.font = NSFont.systemFont(ofSize: 12)
         if tableColumn?.identifier.rawValue == "status", let result = results[check.id] {
-            field.textColor = result.healthy ? .systemGreen : .systemRed
+            // A received HTTP status (including 403) means the service is reachable.
+            // Failed checks use the normal label color: black in the light appearance.
+            field.textColor = result.healthy ? .systemGreen : .labelColor
         }
         field.lineBreakMode = .byTruncatingTail
         field.toolTip = value

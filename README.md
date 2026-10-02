@@ -41,7 +41,7 @@ Silicon.
 | Docker | Containers, stats, logs, shell, inspect, lifecycle controls and Compose operations |
 | systemd | Service status, start/stop/restart, enable/disable and journal streaming |
 | Logs | systemd, Docker, file and command streams with pause, search and filtering |
-| Files | SFTP navigation, upload/download, rename, delete, folders and a guarded text editor |
+| Files | Lazy remote file tree, upload/download with progress, rename, delete, folders and a guarded UTF-8 text editor |
 | Automation | Custom actions, quick actions, projects, deploy workflows and rollback actions |
 | Git | Status, branches, history, diff, pull, fetch and ahead/behind information |
 | Health checks | Scheduled HTTP, TCP and remote shell checks with latency and status |
@@ -86,7 +86,7 @@ bash Scripts/build.sh
 Create the same ZIP and DMG artifacts used by GitHub Actions:
 
 ```bash
-APP_VERSION=0.3.1 BUILD_NUMBER=1 bash Scripts/package.sh
+APP_VERSION=0.3.2 BUILD_NUMBER=1 bash Scripts/package.sh
 ```
 
 The packaging script validates the final Mach-O architecture, minimum macOS

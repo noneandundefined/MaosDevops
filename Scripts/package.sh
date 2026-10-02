@@ -76,8 +76,8 @@ if [[ "$ASKPASS_PROBE" != "maosdevops-askpass-ok" ]]; then
   exit 1
 fi
 
-# The Files tab uses SFTP's working directory for '~'. A quoted tilde is a
-# literal directory name in SFTP and used to produce paths such as /root/~.
+# A quoted tilde is a literal directory name in SFTP. Verify that the Files tab
+# resolves it to the remote user's absolute home path instead.
 "$EXECUTABLE" --files-path-self-test
 
 ARCHS_FOUND="$(lipo -archs "$EXECUTABLE")"

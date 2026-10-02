@@ -22,7 +22,7 @@
 | Custom Actions | **готово** | Command/Poll/Stream/Check/Group, interval, working directory, environment, confirmation, display type, stop_on_error, pin в Quick Actions. Poll/Check не запускают новый цикл, пока предыдущий не завершился. |
 | Quick Actions | **готово** | Пользовательские закреплённые действия, включая обязательное подтверждение опасных действий. |
 | Deploy | **готово** | Сохраняемые workflows в SQLite, редактор server/working directory/steps/options, статус каждого шага, confirmation, stop on error и bounded output. Rollback создаётся отдельным пользовательским Action. |
-| Files / SFTP | **готово** | SFTP listing/navigation, upload/download, rename/delete/mkdir и SFTP-backed редактор разрешённых UTF-8 файлов до 500 KB. |
+| Files / SFTP | **готово** | Ленивое дерево каталогов через NSOutlineView, upload/download с прогрессом и ограниченной памятью, rename/delete/mkdir и встроенный редактор любых UTF-8 текстовых файлов до 10 MB с сохранением обратно на сервер. |
 | Git | **готово** | Отдельная вкладка: status, текущая ветка, последний commit, ahead/behind, modified files, branch, log, diff, pull и fetch. |
 | Health Checks | **готово** | Сохраняемые HTTP/TCP/shell проверки, интервальный runner только на видимом экране, status и latency. |
 | Projects | **готово** | CRUD, выбор серверов и Actions проекта, SQLite и отдельные сохраняемые deploy workflows. |

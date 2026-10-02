@@ -10,14 +10,14 @@ if ProcessInfo.processInfo.environment["MAOSDEVOPS_ASKPASS"] == "1" {
 }
 
 // Headless regression probe used by the release build. It verifies that the
-// Files tab never sends a quoted tilde to SFTP as a literal directory name.
+// Files tab resolves a tilde to the remote user's absolute home directory.
 if CommandLine.arguments.contains("--files-path-self-test") {
     let checks = [
-        RemotePath.sftpPath("~") == ".",
-        RemotePath.sftpPath("~/logs/app.log") == "./logs/app.log",
-        RemotePath.appending("logs", to: "~") == "~/logs",
-        RemotePath.parent(of: "~/logs") == "~",
-        RemotePath.parent(of: "~/logs/archive") == "~/logs"
+        RemotePath.homeRelativeComponent("~") == "",
+        RemotePath.homeRelativeComponent("~/logs/app.log") == "logs/app.log",
+        RemotePath.homeRelativeComponent("/var/log") == nil,
+        RemotePath.resolving("~", home: "/root") == "/root",
+        RemotePath.resolving("~/logs/app.log", home: "/root") == "/root/logs/app.log"
     ]
     if !checks.allSatisfy({ $0 }) {
         FileHandle.standardError.write(Data("Files path self-test failed\n".utf8))

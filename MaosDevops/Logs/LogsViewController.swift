@@ -111,10 +111,13 @@ final class LogsViewController: NSViewController {
           docker ps -a --format '{{.Names}}' 2>/dev/null | head -200
         fi
         printf '__FILES__\n'
-        for root in /var/log "$HOME"; do
+        # Project logs are often nested deeper than /root/<project>/.../logs/<date>/file.
+        # Scan common roots with a bounded depth and also include extensionless files
+        # that live inside a directory named "logs".
+        for root in "$HOME/neosync" /var/log "$HOME"; do
           [ -d "$root" ] || continue
-          find "$root" -maxdepth 4 -type f \\( -name '*.log' -o -name syslog -o -name messages \\) -readable -print 2>/dev/null
-        done | awk '!seen[$0]++' | head -200
+          find "$root" -xdev -maxdepth 8 -type f -readable \\( -name '*.log' -o -name '*.log.*' -o -name syslog -o -name messages -o -path '*/logs/*' \\) -print 2>/dev/null
+        done | awk '!seen[$0]++' | head -400
         """
         AppServices.shared.sshManager.execute(on: server, command: command) { [weak self] result in
             guard let self = self else { return }
@@ -203,7 +206,9 @@ final class LogsViewController: NSViewController {
                 return
             }
             let path = shellQuote(target)
-            cmd = live ? "tail -n 100 -F \(path)" : "tail -n 300 \(path)"
+            // Never read a large log from the beginning. Live starts with a small
+            // tail window and then receives only newly appended data.
+            cmd = live ? "tail -n 100 -F -- \(path)" : "tail -n 300 -- \(path)"
         default:
             cmd = target.isEmpty ? "dmesg | tail -n 100" : target
         }
@@ -236,6 +241,9 @@ final class LogStreamViewController: NSViewController {
     private var levelFilter = "ALL"
     private var searchText = ""
     private var pendingChunk = ""
+    private var bufferedCharacters = 0
+    private let maxBufferedCharacters = 2_000_000
+    private let maxLineCharacters = 64_000
     private var streamHandle: SSHStream?
 
     init(server: Server, title: String, command: String, streaming: Bool = false) {
@@ -359,17 +367,31 @@ final class LogStreamViewController: NSViewController {
 
     private func ingest(_ text: String, flush: Bool = false) {
         pendingChunk += text
+        // A malformed log can contain a gigantic line without a newline. Keep the
+        // unfinished chunk bounded as well so a multi-GB file cannot grow RAM usage.
+        if pendingChunk.count > maxBufferedCharacters {
+            pendingChunk = String(pendingChunk.suffix(maxBufferedCharacters))
+        }
+
         var parts = pendingChunk.components(separatedBy: "\n")
         if flush {
             pendingChunk = ""
         } else {
             pendingChunk = parts.popLast() ?? ""
         }
+
         let stamp = ISO8601DateFormatter().string(from: Date())
         if flush, parts.last == "" { parts.removeLast() }
-        lines.append(contentsOf: parts.map { "[\(stamp)] \($0)" })
-        if lines.count > maxLines {
-            lines.removeFirst(lines.count - maxLines)
+        for part in parts {
+            let clipped = part.count > maxLineCharacters ? String(part.suffix(maxLineCharacters)) : part
+            let line = "[\(stamp)] \(clipped)"
+            lines.append(line)
+            bufferedCharacters += line.count
+        }
+
+        while lines.count > maxLines || bufferedCharacters > maxBufferedCharacters {
+            guard !lines.isEmpty else { break }
+            bufferedCharacters -= lines.removeFirst().count
         }
         if !paused { render() }
     }
@@ -397,7 +419,12 @@ final class LogStreamViewController: NSViewController {
         sender.title = paused ? "Resume" : "Pause"
         if !paused { render() }
     }
-    @objc private func clear() { lines.removeAll(keepingCapacity: true); pendingChunk = ""; textView.string = "" }
+    @objc private func clear() {
+        lines.removeAll(keepingCapacity: true)
+        pendingChunk = ""
+        bufferedCharacters = 0
+        textView.string = ""
+    }
     @objc private func toggleAutoScroll(_ sender: NSButton) {
         autoScroll = sender.state == .on
         if autoScroll { textView.scrollToEndOfDocument(nil) }

@@ -5,6 +5,7 @@ enum SidebarItem: String, CaseIterable {
     case servers
     case projects
     case actions
+    case execution
     case monitoring
     case notifications
 
@@ -14,6 +15,7 @@ enum SidebarItem: String, CaseIterable {
         case .servers: return L10n.text("Servers")
         case .projects: return L10n.text("Projects")
         case .actions: return L10n.text("Actions")
+        case .execution: return L10n.text("Execution")
         case .monitoring: return L10n.text("Monitoring")
         case .notifications: return L10n.text("Notifications")
         }
@@ -113,6 +115,8 @@ extension MainWindowController: SidebarViewControllerDelegate {
             contentController.embed(ProjectsViewController())
         case .actions:
             contentController.embed(ActionsListViewController())
+        case .execution:
+            contentController.embed(ScheduledExecutionViewController())
         case .monitoring:
             contentController.embed(GlobalMonitoringViewController())
         case .notifications:
